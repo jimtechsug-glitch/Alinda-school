@@ -1,0 +1,25 @@
+{
+  "name": "alinda-digital-learners-server",
+  "version": "1.0.0",
+  "description": "Backend API for Alinda Digital Learners e-school application",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "build": "cd ../client && npm install --legacy-peer-deps && npm run build"
+  },
+  "dependencies": {
+    "axios": "^1.18.1",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.4.1",
+    "sequelize": "^6.37.3",
+    "sqlite3": "^5.1.7"
+  },
+  "overrides": {
+    "tar": "^7.5.2"
+  }
+}

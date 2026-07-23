@@ -1,0 +1,51 @@
+﻿/* ==========================================================================
+
+}
+
+/* ==========================================================================
+   AUTOASSISTANT AI â€” NCDC / UNEB RESEARCH ENGINE
+   ========================================================================== */
+
+/* â”€â”€ Wrapper â”€â”€ */
+.aa-wrap {
+  display: flex; flex-direction: column;
+  height: calc(100vh - 118px); min-height: 520px;
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  box-shadow: var(--shadow-md), 0 0 60px rgba(99,102,241,0.06);
+}
+
+/* â”€â”€ Header â”€â”€ */
+.aa-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px; flex-shrink: 0;
+  background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(16,185,129,0.05));
+  border-bottom: 1px solid var(--border);
+}
+.aa-hdr-left { display: flex; align-items: center; gap: 13px; }
+.aa-orb {
+  position: relative; width: 40px; height: 40px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 20px rgba(99,102,241,0.35); flex-shrink: 0;
+}
+.aa-orb-ring {
+  position: absolute; inset: -5px; border-radius: 50%;
+  border: 2px solid rgba(99,102,241,0.3);
+  animation: aa-orb-pulse 2.4s ease-in-out infinite;
+}
+@keyframes aa-orb-pulse {
+  0%,100% { transform:scale(1); opacity:.7; }
+  50% { transform:scale(1.18); opacity:.1; }
+}
+.aa-hdr-title {
+  font-size: 1rem; font-weight: 800; letter-spacing: -.01em;
+  background: linear-gradient(135deg, #c7d2fe, #6ee7b7);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.aa-hdr-sub { display: flex; align-items: center; gap: 8px; margin-top: 3px; }
+.aa-exam-pill {
+  font-size: .68rem; font-weight: 700; padding: 2px 9px;
+  border-radius: 20px; border: 1px solid; letter-spacing: .02em;
+

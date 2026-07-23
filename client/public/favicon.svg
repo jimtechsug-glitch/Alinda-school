@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <!-- Modern Gradient Palette -->
+    <linearGradient id="capGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1" />
+      <stop offset="50%" stop-color="#4f46e5" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#ef4444" />
+    </linearGradient>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e1b4b" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+    <!-- Soft Glow Filter -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Circular container with border -->
+  <circle cx="256" cy="256" r="240" fill="#ffffff" stroke="url(#capGrad)" stroke-width="12" />
+  
+  <!-- Outer glowing rings representing digital orbits -->
+  <circle cx="256" cy="256" r="200" stroke="#10b981" stroke-width="2" stroke-dasharray="12 18" opacity="0.4" />
+  <circle cx="256" cy="256" r="170" stroke="#6366f1" stroke-width="3" stroke-dasharray="6 12" opacity="0.6" />
+
+  <!-- Graduation cap top (diamond) with soft shadow -->
+  <path d="M256,110 L410,185 L256,260 L102,185 Z" fill="url(#capGrad)" filter="url(#glow)" />
+  <!-- Highlights on cap top -->
+  <path d="M256,120 L390,185 L256,250 L122,185 Z" fill="#ffffff" opacity="0.1" />
+
+  <!-- Cap under-structure (neck/base) -->
+  <path d="M180,225 L180,285 C180,335 332,335 332,285 L332,225" fill="none" stroke="url(#capGrad)" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- Digital connection lines/nodes -->
+  <!-- Tassel connected to right side -->
+  <path d="M256,185 L360,230 V320" fill="none" stroke="url(#accentGrad)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+  <!-- Node at the end of tassel -->
+  <circle cx="360" cy="335" r="18" fill="url(#accentGrad)" filter="url(#glow)" />
+  <circle cx="360" cy="335" r="8" fill="#ffffff" />
+  
+  <!-- Bottom digital learning node -->
+  <circle cx="256" cy="390" r="12" fill="#10b981" />
+  <path d="M200,380 C 220,395 292,395 312,380" fill="none" stroke="#10b981" stroke-width="4" stroke-linecap="round" />
+</svg>

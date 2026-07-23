@@ -1,0 +1,63 @@
+﻿
+				The command completed successfully.
+				Output:
+				
+C:\Users\Jimtechs Ug\.gemini\antigravity-ide\brain\85611a3a-96f2-4687-b60b-7d1fcc338731\.system_generated\logs\transcri
+pt.jsonl:8:{"step_index":12,"source":"MODEL","type":"LIST_DIRECTORY","status":"DONE","created_at":"2026-07-21T13:28:18Z
+","content":"Created At: 2026-07-21T13:28:18Z\nCompleted At: 2026-07-21T13:28:18Z\n{\"name\":\"App.css\",\"sizeBytes\":
+\"53\"}\n{\"name\":\"App.jsx\",\"sizeBytes\":\"3790\"}\n{\"name\":\"assets\",\"isDir\":true}\n{\"name\":\"components\",
+\"isDir\":true}\n{\"name\":\"index.css\",\"sizeBytes\":\"20068\"}\n{\"name\":\"main.jsx\",\"sizeBytes\":\"903\"}\n{\"na
+me\":\"pages\",\"isDir\":true}\n\nSummary: This directory contains 3 subdirectories and 4 files."}
+C:\Users\Jimtechs Ug\.gemini\antigravity-ide\brain\85611a3a-96f2-4687-b60b-7d1fcc338731\.system_generated\logs\transcri
+pt.jsonl:14:{"step_index":18,"source":"MODEL","type":"VIEW_FILE","status":"DONE","created_at":"2026-07-21T13:28:26Z","c
+ontent":"Created At: 2026-07-21T13:28:26Z\nCompleted At: 2026-07-21T13:28:27Z\nFile Path: 
+`file:///c:/Alinda%20Digital%20Learners/client/src/App.jsx`\nTotal Lines: 111\nTotal Bytes: 3790\nShowing lines 1 to 
+111\nThe following code has been modified to include a line number before every line, in the format: <line_number>: 
+<original_line>. Please note that any changes targeting the original code should remove the line number, colon, and 
+leading space.\n1: import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';\n2: import { useState, 
+useEffect, createContext, useContext } from 'react';\n3: import GuestPortal from './pages/GuestPortal';\n4: import 
+AuthPortal from './pages/AuthPortal';\n5: import AdminDashboard from './pages/AdminDashboard';\n6: import 
+TeacherDashboard from './pages/TeacherDashboard';\n7: import StudentDashboard from './pages/StudentDashboard';\n8: 
+import WhatsAppWidget from './components/WhatsAppWidget';\n9: import './index.css';\n10: \n11: export const 
+AuthContext = createContext(null);\n12: export const useAuth = () => useContext(AuthContext);\n13: \n14: const API = 
+'http://localhost:5000/api';\n15: export { API };\n16: \n17: // Global 401 interceptor - auto-logout when JWT token 
+expires\n18: const _originalFetch = window.fetch;\n19: window.fetch = async (...args) => {\n20:   const response = 
+await _originalFetch(...args);\n21:   if (response.status === 401) {\n22:     // Only intercept API calls (not CDN / 
+other resources)\n23:     const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';\n24:     if 
+(url.includes(API)) {\n25:       localStorage.removeItem('alinda_user');\n26:       
+localStorage.removeItem('alinda_token');\n27:       // Redirect to /auth only if not already there\n28:       if 
+(!window.location.pathname.startsWith('/auth')) {\n29:         window.location.href = '/auth';\n30:       }\n31:     
+}\n32:   }\n33:   return response;\n34: };\n35: \n36: function ProtectedRoute({ children, role }) {\n37:   const { 
+user } = useAuth();\n38:   if (!user) return <Navigate to=\"/auth\" replace />;\n39:   if (role &&\n<truncated 663 
+bytes>\nta);\n57:     setToken(userToken);\n58:     localStorage.setItem('alinda_user', 
+JSON.stringify(userData));\n59:     localStorage.setItem('alinda_token', userToken);\n60:   };\n61: \n62:   const 
+logout = () => {\n63:     setUser(null);\n64:     setToken(null);\n65:     
+localStorage.removeItem('alinda_user');\n66:     localStorage.removeItem('alinda_token');\n67:   };\n68: \n69:   const 
+toggleTheme = () => {\n70:     const newTheme = theme === 'dark' ? 'light' : 'dark';\n71:     setTheme(newTheme);\n72: 
+    localStorage.setItem('alinda_theme', newTheme);\n73:   };\n74: \n75:   const getDashboardRoute = () => {\n76:     
+if (!user) return '/';\n77:     switch (user.role) {\n78:       case 'admin': return '/admin';\n79:       case 
+'teacher': return '/teacher';\n80:       case 'student': return '/student';\n81:       default: return '/';\n82:     
+}\n83:   };\n84: \n85:   return (\n86:     <AuthContext.Provider value={{ user, token, login, logout, theme, 
+toggleTheme }}>\n87:       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>\n88:      
+   <Routes>\n89:           <Route path=\"/\" element={<GuestPortal />} />\n90:           <Route path=\"/auth\" 
+element={\n91:             user ? <Navigate to={getDashboardRoute()} replace /> : <AuthPortal />\n92:           } 
+/>\n93:           <Route path=\"/admin/*\" element={\n94:             <ProtectedRoute role=\"admin\"><AdminDashboard 
+/></ProtectedRoute>\n95:           } />\n96:           <Route path=\"/teacher/*\" element={\n97:             
+<ProtectedRoute role=\"teacher\"><TeacherDashboard /></ProtectedRoute>\n98:           } />\n99:           <Route 
+path=\"/student/*\" element={\n100:             <ProtectedRoute role=\"student\"><StudentDashboard 
+/></ProtectedRoute>\n101:           } />\n102:           <Route path=\"*\" element={<Navigate to=\"/\" replace />} 
+/>\n103:         </Routes>\n104:         <WhatsAppWidget />\n105:       </BrowserRouter>\n106:     
+</AuthContext.Provider>\n107:   );\n108: }\n109: \n110: export default App;\n111: \nThe above content shows the 
+entire, complete file contents of the requested file.\n","truncated_fields":["content"]}
+C:\Users\Jimtechs Ug\.gemini\antigravity-ide\brain\85611a3a-96f2-4687-b60b-7d1fcc338731\.system_generated\logs\transcri
+pt.jsonl:37:{"step_index":43,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-07-21T13:29:
+20Z","tool_calls":[{"name":"view_file","args":{"AbsolutePath":"\"c:\\\\Alinda Digital Learners\\\\client\\\\src\\\\page
+s\\\\StudentDashboard.jsx\"","EndLine":"450","StartLine":"400","toolAction":"\"Viewing StudentDashboard tab titles & 
+AI tab\"","toolSummary":"\"Student dashboard AI tab 
+render\""}},{"name":"view_file","args":{"AbsolutePath":"\"c:\\\\Alinda Digital 
+Learners\\\\client\\\\src\\\\index.css\"","EndLine":"100","StartLine":"1","toolAction":"\"Viewing index.css 
+start\"","toolSummary":"\"CSS variables and styles\""}}]}
+
+
+
+

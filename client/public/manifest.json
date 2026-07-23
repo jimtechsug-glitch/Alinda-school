@@ -1,0 +1,16 @@
+{
+  "short_name": "Alinda",
+  "name": "Alinda Digital Learners",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#1f2937",
+  "background_color": "#0f172a",
+  "orientation": "portrait"
+}
