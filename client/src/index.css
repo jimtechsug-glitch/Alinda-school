@@ -129,6 +129,7 @@ textarea {
   top: 0;
   z-index: 100;
   transition: var(--transition);
+  overflow-y: auto;
 }
 
 .brand-section {
@@ -2204,13 +2205,24 @@ textarea {
   }
 }
 
+@media (max-width: 640px) {
+  .topbar-user-name {
+    display: none;
+  }
+}
+
 @media (max-width: 480px) {
   html {
     font-size: 15.5px;
   }
 
-  .topbar-actions span {
+  .topbar-actions span.topbar-user-name,
+  .topbar-logout-text {
     display: none;
+  }
+
+  .topbar-logout-btn {
+    padding: 6px 8px !important;
   }
 
   .page-title {

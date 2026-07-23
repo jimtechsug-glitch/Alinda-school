@@ -123,10 +123,32 @@ export default function DashboardLayout({ title, navItems, activeTab, onTabChang
             >
               {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
             </button>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {renderAvatar(32)}
-              <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>{user?.name}</span>
+              <span className="topbar-user-name" style={{ fontSize: '0.9rem', fontWeight: 500 }}>{user?.name}</span>
             </div>
+            <button
+              className="topbar-logout-btn"
+              onClick={logout}
+              title="Logout"
+              style={{
+                background: 'rgba(244, 63, 94, 0.15)',
+                border: '1px solid rgba(244, 63, 94, 0.3)',
+                color: 'var(--accent-rose)',
+                padding: '6px 12px',
+                borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                transition: 'var(--transition)'
+              }}
+            >
+              <LogOut size={16} />
+              <span className="topbar-logout-text">Logout</span>
+            </button>
           </div>
         </header>
 
