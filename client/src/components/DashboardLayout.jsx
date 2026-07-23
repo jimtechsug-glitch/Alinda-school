@@ -1,11 +1,22 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../App';
 import { LogOut, Sun, Moon, Menu, X } from 'lucide-react';
 import Logo from './Logo';
 
 export default function DashboardLayout({ title, navItems, activeTab, onTabChange, children }) {
   const { user, logout, theme, toggleTheme } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== 'undefined' ? window.innerWidth > 768 : true);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth <= 768) {
+        setSidebarOpen(false);
+      }
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const getInitials = (name) => {
     if (!name) return '?';
@@ -37,6 +48,14 @@ export default function DashboardLayout({ title, navItems, activeTab, onTabChang
 
   return (
     <div className="app-container">
+      {/* Mobile Backdrop Overlay */}
+      {sidebarOpen && (
+        <div 
+          className="sidebar-backdrop" 
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       {sidebarOpen && (
         <aside className="sidebar">
@@ -51,7 +70,12 @@ export default function DashboardLayout({ title, navItems, activeTab, onTabChang
               <li
                 key={item.id}
                 className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
-                onClick={() => onTabChange(item.id)}
+                onClick={() => {
+                  onTabChange(item.id);
+                  if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+                    setSidebarOpen(false);
+                  }
+                }}
               >
                 <span style={{ opacity: activeTab === item.id ? 1 : 0.6 }}>{item.icon}</span>
                 <span>{item.label}</span>

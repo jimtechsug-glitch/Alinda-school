@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, BookOpen, Video, FileText,
   MessageSquare, ClipboardList, Plus, Trash2, CheckCircle,
   UserCheck, Bot, ChevronRight, Edit2, Ban, ShieldOff, Shield,
-  EyeOff, Eye, Save, X
+  EyeOff, Eye, Save, X, Key
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth, API } from '../App';
@@ -19,6 +19,7 @@ const NAV = [
   { id: 'lessons', label: 'Live Lessons', icon: <Video size={18} /> },
   { id: 'feedbacks', label: 'Feedbacks', icon: <MessageSquare size={18} /> },
   { id: 'chatbot', label: 'Chatbot Rules', icon: <Bot size={18} /> },
+  { id: 'security', label: 'Security & Password', icon: <Key size={18} /> },
 ];
 
 const CLASSES = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6'];
@@ -59,6 +60,46 @@ export default function AdminDashboard() {
   const [viewingStudent, setViewingStudent] = useState(null);
   const [editingCombination, setEditingCombination] = useState(null);
   const [combForm, setCombForm] = useState({ code: '', name: '', subjectIds: [] });
+
+  // ── Password change state ──
+  const [passForm, setPassForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [showCurrentPass, setShowCurrentPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [passLoading, setPassLoading] = useState(false);
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    if (!passForm.currentPassword || !passForm.newPassword || !passForm.confirmPassword) {
+      showMsg('Please fill in all password fields.');
+      return;
+    }
+    if (passForm.newPassword.length < 6) {
+      showMsg('New password must be at least 6 characters long.');
+      return;
+    }
+    if (passForm.newPassword !== passForm.confirmPassword) {
+      showMsg('New password and confirmation do not match.');
+      return;
+    }
+
+    setPassLoading(true);
+    try {
+      const res = await fetch(`${API}/auth/change-password`, {
+        method: 'PUT',
+        headers: authHeaders,
+        body: JSON.stringify(passForm)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to change password');
+
+      showMsg('Password changed successfully!');
+      setPassForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (err) {
+      showMsg(err.message);
+    } finally {
+      setPassLoading(false);
+    }
+  };
 
   // ── Form visibility toggles ──
   const [showForms, setShowForms] = useState({
@@ -1644,6 +1685,82 @@ export default function AdminDashboard() {
               </form>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ─── SECURITY / CHANGE PASSWORD ─── */}
+      {tab === 'security' && (
+        <div style={{ maxWidth: '580px', margin: '0 auto', width: '100%' }}>
+          <div className="glass-card" style={{ border: '1px solid rgba(99, 102, 241, 0.25)', padding: '28px' }}>
+            <div className="card-title" style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem' }}>
+              <Key size={22} style={{ color: 'var(--primary)' }} /> Administrator Password & Security
+            </div>
+            <p className="card-subtitle" style={{ marginBottom: '24px', color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: '1.5' }}>
+              Update your account password below. Choose a strong, unique password to ensure admin platform security.
+            </p>
+
+            <form onSubmit={handlePasswordChange} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Current Password</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showCurrentPass ? 'text' : 'password'}
+                    className="input-field"
+                    placeholder="Enter current password"
+                    value={passForm.currentPassword}
+                    onChange={e => setPassForm(p => ({ ...p, currentPassword: e.target.value }))}
+                    style={{ paddingRight: '42px' }}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPass(p => !p)}
+                    style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}
+                  >
+                    {showCurrentPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">New Password</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showNewPass ? 'text' : 'password'}
+                    className="input-field"
+                    placeholder="At least 6 characters"
+                    value={passForm.newPassword}
+                    onChange={e => setPassForm(p => ({ ...p, newPassword: e.target.value }))}
+                    style={{ paddingRight: '42px' }}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPass(p => !p)}
+                    style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}
+                  >
+                    {showNewPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Confirm New Password</label>
+                <input
+                  type="password"
+                  className="input-field"
+                  placeholder="Re-enter new password"
+                  value={passForm.confirmPassword}
+                  onChange={e => setPassForm(p => ({ ...p, confirmPassword: e.target.value }))}
+                  required
+                />
+              </div>
+
+              <button className="btn btn-primary" type="submit" disabled={passLoading} style={{ marginTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px' }}>
+                <Save size={16} /> {passLoading ? 'Updating Password...' : 'Save New Password'}
+              </button>
+            </form>
+          </div>
         </div>
       )}
     </DashboardLayout>

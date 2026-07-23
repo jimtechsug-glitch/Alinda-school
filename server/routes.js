@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const axios = require('axios');
@@ -151,6 +151,39 @@ router.put('/auth/profile', requireRole(['teacher', 'student']), async (req, res
   }
 });
 
+// Change Password (All Authenticated Users)
+router.put('/auth/change-password', verifyToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current password and new password are required' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters long' });
+    }
+    if (confirmPassword !== undefined && newPassword !== confirmPassword) {
+      return res.status(400).json({ message: 'New password and confirmation do not match' });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User account not found' });
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Incorrect current password' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await User.update(user.id, { password: hashedPassword });
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (err) {
+    res.status(500).json({ message: 'Password change failed', error: err.message });
+  }
+});
+
 // ==========================================
 // ADMIN USER MANAGEMENT
 // ==========================================
@@ -191,14 +224,14 @@ router.put('/admin/assign-teacher', requireRole(['admin']), async (req, res) => 
   }
 });
 
-// Edit User (Admin) — update name, phone, profile, level, combination, principalSubjects, subsidiarySubjects
+// Edit User (Admin) — update name, phone, profile, level, combination, principalSubjects, subsidiarySubjects, or reset password
 router.put('/admin/users/:id', requireRole(['admin']), async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    const { name, phone, profile, level, combination, principalSubjects, subsidiarySubjects } = req.body;
-    const updated = await User.update(req.params.id, {
+    const { name, phone, profile, level, combination, principalSubjects, subsidiarySubjects, password } = req.body;
+    const updateObj = {
       name: name || user.name,
       phone: phone || user.phone,
       profile: profile !== undefined ? profile : user.profile,
@@ -206,7 +239,13 @@ router.put('/admin/users/:id', requireRole(['admin']), async (req, res) => {
       combination: combination !== undefined ? combination : user.combination,
       principalSubjects: principalSubjects !== undefined ? (typeof principalSubjects === 'string' ? principalSubjects : JSON.stringify(principalSubjects)) : user.principalSubjects,
       subsidiarySubjects: subsidiarySubjects !== undefined ? (typeof subsidiarySubjects === 'string' ? subsidiarySubjects : JSON.stringify(subsidiarySubjects)) : user.subsidiarySubjects,
-    });
+    };
+
+    if (password && password.trim().length >= 6) {
+      updateObj.password = await bcrypt.hash(password.trim(), 10);
+    }
+
+    const updated = await User.update(req.params.id, updateObj);
     res.json({ message: 'User updated successfully', user: updated });
   } catch (err) {
     res.status(500).json({ message: 'User update failed', error: err.message });
