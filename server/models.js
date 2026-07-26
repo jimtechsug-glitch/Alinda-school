@@ -1,5 +1,24 @@
 const { DataTypes } = require('sequelize');
 const mongoose = require('mongoose');
+
+// Ensure MongoDB schemas serialize `_id` to `id` for frontend compatibility
+mongoose.plugin((schema) => {
+  schema.set('toJSON', {
+    virtuals: true,
+    transform: (doc, ret) => {
+      delete ret._id;
+      delete ret.__v;
+    }
+  });
+  schema.set('toObject', {
+    virtuals: true,
+    transform: (doc, ret) => {
+      delete ret._id;
+      delete ret.__v;
+    }
+  });
+});
+
 const { getSequelize, dbType } = require('./db');
 
 // ==========================================
