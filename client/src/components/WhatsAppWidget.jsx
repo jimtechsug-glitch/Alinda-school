@@ -10,7 +10,7 @@ const QUICK_REPLIES = [
   { label: '📚 Subjects', query: 'subjects' },
 ];
 
-const ADMIN_WHATSAPP = '256700000000';
+const ADMIN_WHATSAPP = '256757906118';
 
 export default function WhatsAppWidget() {
   const [open, setOpen] = useState(false);
