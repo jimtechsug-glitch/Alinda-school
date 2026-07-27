@@ -32,6 +32,8 @@ export default function SuperAdminDashboard() {
   const [showCreateAdminModal, setShowCreateAdminModal] = useState(null); // holds target tenant object
   const [editingUser, setEditingUser] = useState(null); // holds user to edit
   const [editingContent, setEditingContent] = useState(null); // holds material/activity/lesson to edit
+  const [editingSchool, setEditingSchool] = useState(null); // holds school platform to edit
+  const [editSchoolForm, setEditSchoolForm] = useState({ name: '', trialDays: 0 });
 
   // Form states
   const [schoolForm, setSchoolForm] = useState({ name: '', trialDays: 14 });
@@ -115,9 +117,54 @@ export default function SuperAdminDashboard() {
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.message || 'Failed to create platform');
-      showToast(`✨ School Platform Created! Invite Code: ${d.tenant.inviteCode}`);
+      showToast(`✨ School Platform Created! Default subjects auto-seeded. Invite Code: ${d.tenant.inviteCode}`);
       setSchoolForm({ name: '', trialDays: 14 });
       setShowCreateSchoolModal(false);
+      fetchAllData();
+    } catch (err) {
+      showToast(err.message);
+    }
+  };
+
+  // Actions: Platform edit, suspend, delete
+  const handleSuspendSchool = async (tId, currentStatus) => {
+    const act = currentStatus === 'suspended' ? 'unsuspend' : 'suspend';
+    if (!window.confirm(`Are you sure you want to ${act} this school platform?`)) return;
+    try {
+      const res = await fetch(`${API}/superadmin/tenants/${tId}/suspend`, { method: 'PUT', headers: authHeaders });
+      const d = await res.json();
+      showToast(d.message || `Platform ${act}ed`);
+      fetchAllData();
+    } catch (err) {
+      showToast('Platform suspend action failed');
+    }
+  };
+
+  const handleDeleteSchool = async (tId) => {
+    if (!window.confirm('PERMANENT ACTION: Delete this school platform from the system?')) return;
+    try {
+      const res = await fetch(`${API}/superadmin/tenants/${tId}`, { method: 'DELETE', headers: authHeaders });
+      const d = await res.json();
+      showToast(d.message || 'Platform deleted');
+      fetchAllData();
+    } catch (err) {
+      showToast('Delete platform failed');
+    }
+  };
+
+  const handleSaveSchoolEdit = async (e) => {
+    e.preventDefault();
+    if (!editingSchool) return;
+    try {
+      const res = await fetch(`${API}/superadmin/tenants/${editingSchool.id}`, {
+        method: 'PUT',
+        headers: authHeaders,
+        body: JSON.stringify(editSchoolForm)
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.message || 'Failed to update platform');
+      showToast('School platform updated successfully');
+      setEditingSchool(null);
       fetchAllData();
     } catch (err) {
       showToast(err.message);
@@ -435,13 +482,32 @@ export default function SuperAdminDashboard() {
                         {(t.revenueGenerated || 0).toLocaleString()}
                       </td>
                       <td>
-                        <button 
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => setShowCreateAdminModal(t)}
-                          style={{ padding: '6px 12px', background: 'rgba(155,89,182,0.15)', border: '1px solid rgba(155,89,182,0.4)', color: '#9b59b6' }}
-                        >
-                          + Add School Admin
-                        </button>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                          <button 
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => setShowCreateAdminModal(t)}
+                            style={{ padding: '6px 10px', background: 'rgba(155,89,182,0.15)', border: '1px solid rgba(155,89,182,0.4)', color: '#9b59b6', fontSize: '0.8rem' }}
+                          >
+                            + Admin
+                          </button>
+                          <button 
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => { setEditingSchool(t); setEditSchoolForm({ name: t.name, trialDays: 0 }); }}
+                            style={{ padding: '6px 10px', fontSize: '0.8rem' }}
+                          >
+                            <Edit2 size={13} /> Edit
+                          </button>
+                          <button 
+                            className="btn btn-sm"
+                            onClick={() => handleSuspendSchool(t.id, t.status)}
+                            style={{ padding: '6px 10px', fontSize: '0.8rem', background: t.status === 'suspended' ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)', color: t.status === 'suspended' ? 'var(--accent-emerald)' : 'var(--accent-amber)', border: '1px solid var(--border)' }}
+                          >
+                            {t.status === 'suspended' ? <Shield size={13} /> : <ShieldOff size={13} />} {t.status === 'suspended' ? 'Unsuspend' : 'Suspend'}
+                          </button>
+                          <button className="btn btn-danger btn-sm" style={{ padding: '6px 10px' }} onClick={() => handleDeleteSchool(t.id)}>
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -969,6 +1035,32 @@ export default function SuperAdminDashboard() {
               <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                 <button className="btn btn-primary" type="submit" style={{ flex: 1 }}>Save Changes</button>
                 <button className="btn btn-secondary" type="button" onClick={() => setEditingUser(null)} style={{ flex: 1 }}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL 5: EDIT SCHOOL PLATFORM ─── */}
+      {editingSchool && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+          <div className="glass-card" style={{ width: '90%', maxWidth: '480px', padding: '28px', border: '1px solid var(--primary)', animation: 'slideUp 0.2s ease-out' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>✏️ Edit School Platform</div>
+              <button onClick={() => setEditingSchool(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={20} /></button>
+            </div>
+            <form onSubmit={handleSaveSchoolEdit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">School Platform Name</label>
+                <input className="input-field" value={editSchoolForm.name} onChange={e => setEditSchoolForm(p => ({ ...p, name: e.target.value }))} required />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Extend Trial Duration (Add Days)</label>
+                <input type="number" className="input-field" placeholder="0" value={editSchoolForm.trialDays} onChange={e => setEditSchoolForm(p => ({ ...p, trialDays: e.target.value }))} />
+              </div>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                <button className="btn btn-primary" type="submit" style={{ flex: 1 }}>Save Changes</button>
+                <button className="btn btn-secondary" type="button" onClick={() => setEditingSchool(null)} style={{ flex: 1 }}>Cancel</button>
               </div>
             </form>
           </div>

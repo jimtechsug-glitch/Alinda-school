@@ -3,7 +3,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const bcrypt = require('bcryptjs');
 const { connectDB } = require('./db');
-const { syncDB, User } = require('./models');
+const { syncDB, User, Tenant } = require('./models');
 const routes = require('./routes');
 
 const path = require('path');
@@ -97,6 +97,22 @@ async function seedDefaultAdmin() {
         tenantId: null
       });
       console.log('✅ Super Admin created: username="superadmin", password="superadmin123"');
+    }
+
+    const existingDefaultTenant = await Tenant.findOne({ inviteCode: 'DEFAULT' });
+    if (!existingDefaultTenant) {
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setFullYear(startDate.getFullYear() + 10); // Default school valid indefinitely
+      await Tenant.create({
+        name: 'Default School Platform',
+        inviteCode: 'DEFAULT',
+        trialStartDate: startDate,
+        trialEndDate: endDate,
+        status: 'active',
+        revenueGenerated: 0
+      });
+      console.log('✅ Default School Platform created: inviteCode="DEFAULT"');
     }
   } catch (err) {
     console.error('Admin seed error (non-fatal):', err.message);
