@@ -784,8 +784,7 @@ export default function AdminDashboard() {
               { label: 'Subjects', value: subjects.length, color: 'var(--accent-rose)', icon: <BookOpen size={22} /> },
               { label: 'Materials', value: materials.length, color: 'var(--accent-emerald)', icon: <FileText size={22} /> },
               { label: 'Activities', value: activities.length, color: 'var(--accent-amber)', icon: <ClipboardList size={22} /> },
-              { label: 'Live Lessons', value: lessons.length, color: 'var(--primary)', icon: <Video size={22} /> },
-              { label: 'Feedbacks', value: feedbacks.length, color: 'var(--accent-rose)', icon: <MessageSquare size={22} /> },
+              { label: 'Live Lessons', value: lessons.length, color: 'var(--primary)', icon: <Video size={22} /> }
             ].map(m => (
               <div key={m.label} className="glass-card" style={{ borderLeft: `4px solid ${m.color}` }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
