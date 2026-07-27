@@ -69,7 +69,7 @@ export default function SuperAdminDashboard() {
   const fetchAllData = async () => {
     setLoading(true);
     try {
-      const [tRes, uRes, kRes, mRes, aRes, lRes] = await Promise.all([
+      const [tRes, uRes, kRes, mRes, aRes, lRes, fRes] = await Promise.all([
         fetch(`${API}/superadmin/tenants`, { headers: authHeaders }).then(r => r.json()).catch(() => []),
         fetch(`${API}/admin/users`, { headers: authHeaders }).then(r => r.json()).catch(() => []),
         fetch(`${API}/superadmin/activation-keys`, { headers: authHeaders }).then(r => r.json()).catch(() => []),
