@@ -62,7 +62,7 @@ if (require('fs').existsSync(clientBuildPath)) {
 
 
 // ==========================================
-// AUTO-SEED: Create default admin if no users exist
+// AUTO-SEED: Create default admin and superadmin if they do not exist
 // ==========================================
 async function seedDefaultAdmin() {
   try {
@@ -79,16 +79,24 @@ async function seedDefaultAdmin() {
         profile: 'System Administrator',
         level: null
       });
-      console.log('');
-      console.log('========================================');
-      console.log('  DEFAULT ADMIN ACCOUNT CREATED:');
-      console.log('  Username : admin');
-      console.log('  Password : admin123');
-      console.log('  >> CHANGE THIS PASSWORD AFTER FIRST LOGIN <<');
-      console.log('========================================');
-      console.log('');
-    } else {
-      console.log('Admin account already exists. Skipping seed.');
+      console.log('✅ Default Admin created: username="admin", password="admin123"');
+    }
+
+    const existingSuperAdmin = await User.findOne({ username: 'superadmin' });
+    if (!existingSuperAdmin) {
+      const hashedPassword = await bcrypt.hash('superadmin123', 10);
+      await User.create({
+        name: 'Super Master Admin',
+        phone: '256700000001',
+        username: 'superadmin',
+        password: hashedPassword,
+        role: 'superadmin',
+        isApproved: true,
+        profile: 'Master System Control',
+        level: null,
+        tenantId: null
+      });
+      console.log('✅ Super Admin created: username="superadmin", password="superadmin123"');
     }
   } catch (err) {
     console.error('Admin seed error (non-fatal):', err.message);
