@@ -494,11 +494,6 @@ router.get('/teachers', async (req, res) => {
 
     if (userTenantId) {
       query.tenantId = userTenantId;
-    } else {
-      // Guests don't have a tenantId. In a strict multi-tenant system, guests shouldn't see teachers globally.
-      // But we will fetch teachers of the Default Legacy School, or no teachers at all.
-      // For now, let's just return empty for unauthenticated guests, or require invite code to view.
-      return res.json([]);
     }
 
     const teachers = await User.findAll(query);
@@ -576,7 +571,7 @@ router.put('/subjects/:id', requireRole(['admin']), async (req, res) => {
 router.get('/subjects', verifyToken, async (req, res) => {
   try {
     let query = {};
-    if (req.user.role !== 'superadmin') {
+    if (req.user.role !== 'superadmin' && req.user.tenantId) {
       query.tenantId = req.user.tenantId;
     }
     const subjects = await Subject.findAll(query);
@@ -735,7 +730,7 @@ router.get('/materials', async (req, res) => {
       try {
         const token = authHeader.split(' ')[1];
         decoded = jwt.verify(token, JWT_SECRET);
-        if (decoded && decoded.role !== 'superadmin') {
+        if (decoded && decoded.role !== 'superadmin' && decoded.tenantId) {
           query.tenantId = decoded.tenantId;
           usersQuery.tenantId = decoded.tenantId;
         }
