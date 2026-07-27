@@ -252,29 +252,30 @@ router.post('/superadmin/tenants', requireRole(['superadmin']), async (req, res)
 
     // Auto-seed subjects from default school
     try {
-      const defaultTenant = await Tenant.findOne({ where: { inviteCode: 'DEFAULT' } }).catch(() => null);
+      const defaultTenant = await Tenant.findOne({ inviteCode: 'DEFAULT' }).catch(() => null);
       const defaultTenantId = defaultTenant ? String(defaultTenant.id) : null;
       
       let defaultSubjects = [];
       if (defaultTenantId) {
-        defaultSubjects = await Subject.findAll({ where: { tenantId: defaultTenantId } });
+        defaultSubjects = await Subject.findAll({ tenantId: defaultTenantId }).catch(() => []);
       }
       if (!defaultSubjects || defaultSubjects.length === 0) {
-        defaultSubjects = await Subject.findAll({ where: { tenantId: null } });
+        defaultSubjects = await Subject.findAll({ tenantId: null }).catch(() => []);
       }
 
       if (defaultSubjects && defaultSubjects.length > 0) {
-        const clonedSubjects = defaultSubjects.map(sub => ({
-          name: sub.name,
-          level: sub.level,
-          className: sub.className,
-          description: sub.description,
-          category: sub.category || 'Both',
-          code: sub.code,
-          classification: sub.classification,
-          tenantId: String(tenant.id)
-        }));
-        await Subject.bulkCreate(clonedSubjects);
+        for (const sub of defaultSubjects) {
+          await Subject.create({
+            name: sub.name,
+            level: sub.level,
+            className: sub.className,
+            description: sub.description,
+            category: sub.category || 'Both',
+            code: sub.code,
+            classification: sub.classification,
+            tenantId: String(tenant.id)
+          }).catch(() => null);
+        }
       }
     } catch (seedErr) {
       console.error('Error auto-seeding subjects:', seedErr.message);
@@ -290,19 +291,19 @@ router.post('/superadmin/tenants', requireRole(['superadmin']), async (req, res)
 router.put('/superadmin/tenants/:id', requireRole(['superadmin']), async (req, res) => {
   try {
     const { name, status, trialDays } = req.body;
-    let tenant = await Tenant.findByPk ? await Tenant.findByPk(req.params.id) : await Tenant.findOne({ where: { id: req.params.id } });
-    if (!tenant && Tenant.findById) tenant = await Tenant.findById(req.params.id);
+    const tenant = await Tenant.findById(req.params.id);
     if (!tenant) return res.status(404).json({ message: 'School Platform not found' });
 
-    if (name) tenant.name = name;
-    if (status) tenant.status = status;
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (status) updateData.status = status;
     if (trialDays) {
       const currentEnd = new Date(tenant.trialEndDate || Date.now());
       currentEnd.setDate(currentEnd.getDate() + Number(trialDays));
-      tenant.trialEndDate = currentEnd;
+      updateData.trialEndDate = currentEnd;
     }
-    await tenant.save();
-    res.json({ message: 'School Platform updated successfully', tenant });
+    const updated = await Tenant.update(req.params.id, updateData);
+    res.json({ message: 'School Platform updated successfully', tenant: updated });
   } catch (err) {
     res.status(500).json({ message: 'Failed to update tenant', error: err.message });
   }
@@ -311,13 +312,12 @@ router.put('/superadmin/tenants/:id', requireRole(['superadmin']), async (req, r
 // Suspend/Unsuspend Tenant (Superadmin)
 router.put('/superadmin/tenants/:id/suspend', requireRole(['superadmin']), async (req, res) => {
   try {
-    let tenant = await Tenant.findByPk ? await Tenant.findByPk(req.params.id) : await Tenant.findOne({ where: { id: req.params.id } });
-    if (!tenant && Tenant.findById) tenant = await Tenant.findById(req.params.id);
+    const tenant = await Tenant.findById(req.params.id);
     if (!tenant) return res.status(404).json({ message: 'School Platform not found' });
 
-    tenant.status = tenant.status === 'suspended' ? 'active' : 'suspended';
-    await tenant.save();
-    res.json({ message: `School Platform state changed to ${tenant.status}`, tenant });
+    const newStatus = tenant.status === 'suspended' ? 'active' : 'suspended';
+    const updated = await Tenant.update(req.params.id, { status: newStatus });
+    res.json({ message: `School Platform state changed to ${newStatus}`, tenant: updated });
   } catch (err) {
     res.status(500).json({ message: 'Failed to toggle tenant suspension', error: err.message });
   }
@@ -326,11 +326,10 @@ router.put('/superadmin/tenants/:id/suspend', requireRole(['superadmin']), async
 // Delete Tenant (Superadmin)
 router.delete('/superadmin/tenants/:id', requireRole(['superadmin']), async (req, res) => {
   try {
-    let tenant = await Tenant.findByPk ? await Tenant.findByPk(req.params.id) : await Tenant.findOne({ where: { id: req.params.id } });
-    if (!tenant && Tenant.findById) tenant = await Tenant.findById(req.params.id);
+    const tenant = await Tenant.findById(req.params.id);
     if (!tenant) return res.status(404).json({ message: 'School Platform not found' });
 
-    await tenant.destroy();
+    await Tenant.delete(req.params.id);
     res.json({ message: 'School Platform deleted successfully' });
   } catch (err) {
     res.status(500).json({ message: 'Failed to delete tenant', error: err.message });
