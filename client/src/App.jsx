@@ -29,8 +29,8 @@ window.fetch = async (...args) => {
     if (url.includes(API)) {
       localStorage.removeItem('alinda_user');
       localStorage.removeItem('alinda_token');
-      // Redirect to /auth only if not already there
-      if (!window.location.pathname.startsWith('/auth')) {
+      // Redirect to /auth only if user is on a protected route (not on / or /auth)
+      if (window.location.pathname !== '/' && !window.location.pathname.startsWith('/auth')) {
         window.location.href = '/auth';
       }
     }

@@ -24,6 +24,7 @@ export default function DashboardLayout({ title, navItems, activeTab, onTabChang
   };
 
   const roleColor = {
+    superadmin: 'var(--primary)',
     admin: 'var(--accent-rose)',
     teacher: 'var(--accent-amber)',
     student: 'var(--accent-emerald)'

@@ -25,7 +25,7 @@ function verifyToken(req, res, next) {
 
 const requireRole = (roles) => (req, res, next) => {
   verifyToken(req, res, () => {
-    if (roles.includes(req.user.role)) {
+    if (roles.includes(req.user.role) || req.user.role === 'superadmin') {
       next();
     } else {
       res.status(403).json({ message: 'Unauthorized access: insufficient permissions' });
@@ -379,10 +379,14 @@ router.post('/admin/teachers', requireRole(['admin']), async (req, res) => {
 // ADMIN USER MANAGEMENT
 // ==========================================
 
-// Get All Users (Admin)
+// Get All Users (Admin & SuperAdmin)
 router.get('/admin/users', requireRole(['admin']), async (req, res) => {
   try {
-    const users = await User.findAll({ tenantId: req.user.tenantId });
+    let query = {};
+    if (req.user.role !== 'superadmin') {
+      query.tenantId = req.user.tenantId;
+    }
+    const users = await User.findAll(query);
     res.json(users);
   } catch (err) {
     res.status(500).json({ message: 'Failed to retrieve users', error: err.message });

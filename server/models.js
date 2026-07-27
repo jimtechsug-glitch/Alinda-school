@@ -297,8 +297,8 @@ function syncDB() {
     initMongooseModels();
   } else {
     initSequelizeModels();
-    // Sync SQLite/Postgres tables with alter: true to automatically update columns (e.g. tenantId)
-    return getSequelize().sync({ alter: true });
+    // Sync SQLite/Postgres tables
+    return getSequelize().sync();
   }
 }
 
