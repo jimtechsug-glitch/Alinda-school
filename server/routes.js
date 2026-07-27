@@ -1168,8 +1168,8 @@ router.post('/guest/feedback', async (req, res) => {
   }
 });
 
-// View Guest Feedbacks (Admin)
-router.get('/admin/feedbacks', requireRole(['admin']), async (req, res) => {
+// View Guest Feedbacks (SuperAdmin)
+router.get('/superadmin/feedbacks', requireRole(['superadmin']), async (req, res) => {
   try {
     const list = await Feedback.findAll({});
     res.json(list);
@@ -1178,8 +1178,8 @@ router.get('/admin/feedbacks', requireRole(['admin']), async (req, res) => {
   }
 });
 
-// Create/Update Chatbot Responses (Admin)
-router.post('/admin/chatbot', requireRole(['admin']), async (req, res) => {
+// Create/Update Chatbot Responses (SuperAdmin)
+router.post('/superadmin/chatbot', requireRole(['superadmin']), async (req, res) => {
   try {
     const { keyword, response } = req.body;
     if (!keyword || !response) return res.status(400).json({ message: 'Keyword and Response are required' });

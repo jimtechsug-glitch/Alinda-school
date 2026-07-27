@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   LayoutDashboard, Building2, Users, UserCheck, DollarSign, Shield, Key,
   Plus, Trash2, Edit2, ShieldOff, Eye, Ban, CheckCircle, FileText,
-  ClipboardList, Video, X, Lock, EyeOff, Search, Filter, RefreshCw
+  ClipboardList, Video, X, Lock, EyeOff, Search, Filter, RefreshCw, MessageSquare, Bot
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth, API } from '../App';
@@ -19,6 +19,7 @@ export default function SuperAdminDashboard() {
   const [materials, setMaterials] = useState([]);
   const [activities, setActivities] = useState([]);
   const [lessons, setLessons] = useState([]);
+  const [feedbacks, setFeedbacks] = useState([]);
   const [loading, setLoading] = useState(false);
 
   // Search & Filter states
@@ -38,6 +39,8 @@ export default function SuperAdminDashboard() {
   const [adminForm, setAdminForm] = useState({ name: '', phone: '', username: '', password: '' });
   const [userEditForm, setUserEditForm] = useState({ name: '', phone: '', profile: '', level: '' });
   const [contentEditForm, setContentEditForm] = useState({ title: '', contentUrl: '', classLevel: '' });
+  const [chatForm, setChatForm] = useState({ keyword: '', response: '' });
+  const [showChatbotForm, setShowChatbotForm] = useState(false);
 
   // Password change state
   const [passForm, setPassForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -53,6 +56,8 @@ export default function SuperAdminDashboard() {
     { id: 'students', label: 'Students Control', icon: <Users size={18} /> },
     { id: 'teachers', label: 'Teachers Control', icon: <UserCheck size={18} /> },
     { id: 'content', label: 'Content & Resources', icon: <FileText size={18} /> },
+    { id: 'feedbacks', label: 'Guest Feedbacks', icon: <MessageSquare size={18} /> },
+    { id: 'chatbot', label: 'Chatbot Rules', icon: <Bot size={18} /> },
     { id: 'revenue', label: 'Revenue & Subscriptions', icon: <DollarSign size={18} /> },
     { id: 'security', label: 'Security & Password', icon: <Key size={18} /> },
   ];
@@ -69,6 +74,7 @@ export default function SuperAdminDashboard() {
         fetch(`${API}/materials`, { headers: authHeaders }).then(r => r.json()).catch(() => []),
         fetch(`${API}/activities`, { headers: authHeaders }).then(r => r.json()).catch(() => []),
         fetch(`${API}/lessons`, { headers: authHeaders }).then(r => r.json()).catch(() => []),
+        fetch(`${API}/superadmin/feedbacks`, { headers: authHeaders }).then(r => r.json()).catch(() => []),
       ]);
       setTenants(Array.isArray(tRes) ? tRes : []);
       setAllUsers(Array.isArray(uRes) ? uRes : []);
@@ -76,6 +82,7 @@ export default function SuperAdminDashboard() {
       setMaterials(Array.isArray(mRes) ? mRes : []);
       setActivities(Array.isArray(aRes) ? aRes : []);
       setLessons(Array.isArray(lRes) ? lRes : []);
+      setFeedbacks(Array.isArray(fRes) ? fRes : []);
     } catch (err) {
       showToast('Error loading master data');
     } finally {
@@ -254,6 +261,20 @@ export default function SuperAdminDashboard() {
       fetchAllData();
     } catch (err) {
       showToast('Delete lesson failed');
+    }
+  };
+
+  const handleAddChatRule = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API}/superadmin/chatbot`, { method: 'POST', headers: authHeaders, body: JSON.stringify(chatForm) });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.message || 'Failed to save rule');
+      showToast(d.message);
+      setChatForm({ keyword: '', response: '' });
+      setShowChatbotForm(false);
+    } catch (err) {
+      showToast(err.message);
     }
   };
 
@@ -683,6 +704,62 @@ export default function SuperAdminDashboard() {
               </table>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ─── TAB 5A: FEEDBACKS ─── */}
+      {tab === 'feedbacks' && (
+        <div className="table-container">
+          <table className="custom-table">
+            <thead><tr><th>Name</th><th>Email</th><th>Message</th><th>Date</th></tr></thead>
+            <tbody>
+              {feedbacks.length === 0 && <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px' }}>No feedbacks submitted yet.</td></tr>}
+              {feedbacks.map(f => (
+                <tr key={f.id}>
+                  <td style={{ fontWeight: 600 }}>{f.name}</td>
+                  <td style={{ color: 'var(--text-muted)' }}>{f.email}</td>
+                  <td style={{ maxWidth: '300px', fontSize: '0.9rem' }}>{f.message}</td>
+                  <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{new Date(f.createdAt).toLocaleDateString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ─── TAB 5B: CHATBOT ─── */}
+      {tab === 'chatbot' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <div style={{ marginBottom: '8px' }}>
+            <button
+              className={`btn ${showChatbotForm ? 'btn-secondary' : 'btn-primary'}`}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+              onClick={() => setShowChatbotForm(p => !p)}
+            >
+              {showChatbotForm ? <X size={16} /> : <Plus size={16} />}
+              {showChatbotForm ? 'Cancel' : '+ Add Chatbot Rule'}
+            </button>
+          </div>
+
+          {showChatbotForm && (
+            <div className="glass-card" style={{ border: '1px solid rgba(99,102,241,0.3)', animation: 'slideUp 0.2s ease-out' }}>
+              <div className="card-title" style={{ marginBottom: '20px' }}><Bot size={16} /> Add Chatbot Auto-Response Rule</div>
+              <form onSubmit={handleAddChatRule} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Keyword (trigger phrase)</label>
+                  <input className="input-field" placeholder="e.g. fees, scholarship, schedule" value={chatForm.keyword} onChange={e => setChatForm(p => ({ ...p, keyword: e.target.value }))} required />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0, gridColumn: 'span 2' }}>
+                  <label className="form-label">Auto-Response Message</label>
+                  <textarea className="textarea-field" rows={3} placeholder="Type the response students should receive..." value={chatForm.response} onChange={e => setChatForm(p => ({ ...p, response: e.target.value }))} required />
+                </div>
+                <div style={{ gridColumn: 'span 2', display: 'flex', gap: '10px' }}>
+                  <button className="btn btn-primary" type="submit" style={{ flex: 1 }}><Plus size={16} /> Save Rule</button>
+                  <button className="btn btn-secondary" type="button" onClick={() => setShowChatbotForm(false)} style={{ flex: 1 }}>Cancel</button>
+                </div>
+              </form>
+            </div>
+          )}
         </div>
       )}
 

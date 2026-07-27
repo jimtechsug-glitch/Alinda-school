@@ -17,8 +17,6 @@ const NAV = [
   { id: 'materials', label: 'Notes & Resources', icon: <FileText size={18} /> },
   { id: 'activities', label: 'Activities', icon: <ClipboardList size={18} /> },
   { id: 'lessons', label: 'Live Lessons', icon: <Video size={18} /> },
-  { id: 'feedbacks', label: 'Feedbacks', icon: <MessageSquare size={18} /> },
-  { id: 'chatbot', label: 'Chatbot Rules', icon: <Bot size={18} /> },
   { id: 'subscription', label: 'School Subscription', icon: <Key size={18} /> },
   { id: 'security', label: 'Security & Password', icon: <Key size={18} /> },
 ];
@@ -45,7 +43,6 @@ export default function AdminDashboard() {
   const [materials, setMaterials] = useState([]);
   const [activities, setActivities] = useState([]);
   const [lessons, setLessons] = useState([]);
-  const [feedbacks, setFeedbacks] = useState([]);
   const [combinations, setCombinations] = useState([]);
   const [msg, setMsg] = useState('');
 
@@ -130,20 +127,19 @@ export default function AdminDashboard() {
   // ── Form visibility toggles ──
   const [showForms, setShowForms] = useState({
     teacher: false, subject: false, material: false,
-    activity: false, lesson: false, chatbot: false, combination: false
+    activity: false, lesson: false, combination: false
   });
   const toggleForm = (key) => setShowForms(p => ({ ...p, [key]: !p[key] }));
   const closeForm = (key) => setShowForms(p => ({ ...p, [key]: false }));
 
   const fetchAll = async () => {
-    const [us, ts, subs, mats, acts, les, fbs, combs] = await Promise.all([
+    const [us, ts, subs, mats, acts, les, combs] = await Promise.all([
       fetch(`${API}/admin/users`, { headers: authHeaders }).then(r => r.json()).catch(() => []),
       fetch(`${API}/teachers`, { headers: authHeaders }).then(r => r.json()).catch(() => []),
       fetch(`${API}/subjects`, { headers: authHeaders }).then(r => r.json()).catch(() => []),
       fetch(`${API}/materials`, { headers: authHeaders }).then(r => r.json()).catch(() => []),
       fetch(`${API}/activities`, { headers: authHeaders }).then(r => r.json()).catch(() => []),
       fetch(`${API}/lessons`, { headers: authHeaders }).then(r => r.json()).catch(() => []),
-      fetch(`${API}/admin/feedbacks`, { headers: authHeaders }).then(r => r.json()).catch(() => []),
       fetch(`${API}/combinations`, { headers: authHeaders }).then(r => r.json()).catch(() => []),
     ]);
     setStudents(Array.isArray(us) ? us.filter(u => u.role === 'student') : []);
@@ -152,7 +148,6 @@ export default function AdminDashboard() {
     setMaterials(Array.isArray(mats) ? mats : []);
     setActivities(Array.isArray(acts) ? acts : []);
     setLessons(Array.isArray(les) ? les : []);
-    setFeedbacks(Array.isArray(fbs) ? fbs : []);
     setCombinations(Array.isArray(combs) ? combs : []);
   };
 
@@ -484,15 +479,6 @@ export default function AdminDashboard() {
     setTchForm({ name: '', phone: '', username: '', password: '', profile: '' });
   };
 
-  // ── Chatbot form ──
-  const [chatForm, setChatForm] = useState({ keyword: '', response: '' });
-  const addChatRule = async (e) => {
-    e.preventDefault();
-    const res = await fetch(`${API}/admin/chatbot`, { method: 'POST', headers: authHeaders, body: JSON.stringify(chatForm) });
-    const d = await res.json();
-    showMsg(d.message);
-    setChatForm({ keyword: '', response: '' });
-  };
 
   // ── Assign teacher ──
   const [assignForm, setAssignForm] = useState({ studentId: '', teacherId: '' });
@@ -520,9 +506,7 @@ export default function AdminDashboard() {
     combinations: "A' Level Combinations",
     materials: 'Notes & Resources',
     activities: 'Activities & Assessments',
-    lessons: 'Live Lesson Schedules',
-    feedbacks: 'Guest Feedbacks',
-    chatbot: 'Chatbot Rules'
+    lessons: 'Live Lesson Schedules'
   };
 
   // ── Modal overlay style ──
@@ -1521,25 +1505,6 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ─── FEEDBACKS ─── */}
-      {tab === 'feedbacks' && (
-        <div className="table-container">
-          <table className="custom-table">
-            <thead><tr><th>Name</th><th>Email</th><th>Message</th><th>Date</th></tr></thead>
-            <tbody>
-              {feedbacks.length === 0 && <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px' }}>No feedbacks submitted yet.</td></tr>}
-              {feedbacks.map(f => (
-                <tr key={f.id}>
-                  <td style={{ fontWeight: 600 }}>{f.name}</td>
-                  <td style={{ color: 'var(--text-muted)' }}>{f.email}</td>
-                  <td style={{ maxWidth: '300px', fontSize: '0.9rem' }}>{f.message}</td>
-                  <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{new Date(f.createdAt).toLocaleDateString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
 
       {/* ─── A' LEVEL COMBINATIONS ─── */}
       {tab === 'combinations' && (
@@ -1677,42 +1642,6 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ─── CHATBOT ─── */}
-      {tab === 'chatbot' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {/* ── Add Chatbot Rule toggle ── */}
-          <div style={{ marginBottom: '8px' }}>
-            <button
-              className={`btn ${showForms.chatbot ? 'btn-secondary' : 'btn-primary'}`}
-              style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-              onClick={() => toggleForm('chatbot')}
-            >
-              {showForms.chatbot ? <X size={16} /> : <Plus size={16} />}
-              {showForms.chatbot ? 'Cancel' : '+ Add Chatbot Rule'}
-            </button>
-          </div>
-
-          {showForms.chatbot && (
-            <div className="glass-card" style={{ border: '1px solid rgba(99,102,241,0.3)', animation: 'slideUp 0.2s ease-out' }}>
-              <div className="card-title" style={{ marginBottom: '20px' }}><Bot size={16} /> Add Chatbot Auto-Response Rule</div>
-              <form onSubmit={async (e) => { await addChatRule(e); closeForm('chatbot'); }} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Keyword (trigger phrase)</label>
-                  <input className="input-field" placeholder="e.g. fees, scholarship, schedule" value={chatForm.keyword} onChange={e => setChatForm(p => ({ ...p, keyword: e.target.value }))} required />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0, gridColumn: 'span 2' }}>
-                  <label className="form-label">Auto-Response Message</label>
-                  <textarea className="textarea-field" rows={3} placeholder="Type the response students should receive..." value={chatForm.response} onChange={e => setChatForm(p => ({ ...p, response: e.target.value }))} required />
-                </div>
-                <div style={{ gridColumn: 'span 2', display: 'flex', gap: '10px' }}>
-                  <button className="btn btn-primary" type="submit" style={{ flex: 1 }}><Plus size={16} /> Save Rule</button>
-                  <button className="btn btn-secondary" type="button" onClick={() => closeForm('chatbot')} style={{ flex: 1 }}>Cancel</button>
-                </div>
-              </form>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* ─── SCHOOL SUBSCRIPTION / ACTIVATION KEY ─── */}
       {tab === 'subscription' && (
