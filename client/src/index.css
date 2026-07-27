@@ -623,7 +623,8 @@ textarea {
   right: 32px;
   width: 360px;
   height: 480px;
-  background-color: var(--bg-sidebar);
+  background-color: #ffffff;
+  color: #000000;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
@@ -693,7 +694,7 @@ textarea {
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: #ffffff;
 }
 
 .whatsapp-msg {
@@ -705,8 +706,8 @@ textarea {
 }
 
 .whatsapp-msg.incoming {
-  background-color: var(--bg-card);
-  color: var(--text-main);
+  background-color: #f1f5f9;
+  color: #000000;
   align-self: flex-start;
   border-top-left-radius: 0;
 }
@@ -724,7 +725,7 @@ textarea {
   gap: 6px;
   padding: 8px 16px;
   border-top: 1px solid var(--border);
-  background-color: rgba(255, 255, 255, 0.02);
+  background-color: #ffffff;
 }
 
 .quick-reply-btn {
