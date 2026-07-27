@@ -8,6 +8,8 @@ import StudentDashboard from './pages/StudentDashboard';
 import WhatsAppWidget from './components/WhatsAppWidget';
 import './index.css';
 
+import SuperAdminDashboard from './pages/SuperAdminDashboard';
+
 export const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
 
@@ -78,6 +80,7 @@ function App() {
   const getDashboardRoute = () => {
     if (!user) return '/';
     switch (user.role) {
+      case 'superadmin': return '/superadmin';
       case 'admin': return '/admin';
       case 'teacher': return '/teacher';
       case 'student': return '/student';
@@ -92,6 +95,9 @@ function App() {
           <Route path="/" element={<GuestPortal />} />
           <Route path="/auth" element={
             user ? <Navigate to={getDashboardRoute()} replace /> : <AuthPortal />
+          } />
+          <Route path="/superadmin/*" element={
+            <ProtectedRoute role="superadmin"><SuperAdminDashboard /></ProtectedRoute>
           } />
           <Route path="/admin/*" element={
             <ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>

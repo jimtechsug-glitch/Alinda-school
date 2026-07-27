@@ -24,7 +24,7 @@ export default function AuthPortal() {
 
   const [loginForm, setLoginForm] = useState({ loginKey: '', password: '' });
   const [registerForm, setRegisterForm] = useState({
-    name: '', phone: '', username: '', password: '', confirmPassword: '', level: 'S1'
+    name: '', phone: '', username: '', password: '', confirmPassword: '', level: 'S1', inviteCode: ''
   });
 
   // Fetch A-Level subjects whenever we need them
@@ -155,6 +155,7 @@ export default function AuthPortal() {
         combination: isALevel ? deriveCombination() : null,
         principalSubjects: isALevel ? JSON.stringify(selectedPrincipals) : null,
         subsidiarySubjects: isALevel ? JSON.stringify(selectedSubsidiaries) : null,
+        inviteCode: registerForm.inviteCode
       };
       const res = await fetch(`${API}/auth/register`, {
         method: 'POST',
@@ -328,6 +329,12 @@ export default function AuthPortal() {
             </div>
 
             <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">School Invite Code</label>
+                <input className="input-field" placeholder="e.g. STM1234 or DEFAULT2026" value={registerForm.inviteCode}
+                  onChange={e => setRegisterForm(p => ({ ...p, inviteCode: e.target.value }))} required />
+              </div>
+
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">Full Name</label>
                 <input className="input-field" placeholder="e.g. Namukasa Sarah Beatrice" value={registerForm.name}

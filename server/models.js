@@ -35,7 +35,7 @@ function initSequelizeModels() {
     phone: { type: DataTypes.STRING, allowNull: false },
     username: { type: DataTypes.STRING, allowNull: false, unique: true },
     password: { type: DataTypes.STRING, allowNull: false },
-    role: { type: DataTypes.STRING, allowNull: false }, // admin, teacher, student, guest
+    role: { type: DataTypes.STRING, allowNull: false }, // superadmin, admin, teacher, student, guest
     isApproved: { type: DataTypes.BOOLEAN, defaultValue: false },
     isSuspended: { type: DataTypes.BOOLEAN, defaultValue: false }, // Admin can suspend accounts
     level: { type: DataTypes.STRING, allowNull: true }, // e.g., P5, S3, S6
@@ -45,6 +45,7 @@ function initSequelizeModels() {
     principalSubjects: { type: DataTypes.TEXT, allowNull: true }, // JSON array of 3 principal subject IDs
     subsidiarySubjects: { type: DataTypes.TEXT, allowNull: true }, // JSON array of 2 subsidiary subject IDs (includes GP)
     photoData: { type: DataTypes.TEXT, allowNull: true }, // base64 representation of profile photo
+    tenantId: { type: DataTypes.STRING, allowNull: true }, // ID of the school platform
   });
 
   SQL.Subject = sequelize.define('Subject', {
@@ -55,6 +56,7 @@ function initSequelizeModels() {
     category: { type: DataTypes.STRING, defaultValue: 'Both', allowNull: true }, // Art, Science, Both
     code: { type: DataTypes.STRING, allowNull: true }, // Subject code
     classification: { type: DataTypes.STRING, allowNull: true }, // Compulsory, Optional, Principal, Subsidiary
+    tenantId: { type: DataTypes.STRING, allowNull: true },
   });
 
   SQL.Material = sequelize.define('Material', {
@@ -69,6 +71,7 @@ function initSequelizeModels() {
     fileType: { type: DataTypes.STRING, allowNull: true }, // File type (pdf, word, image, video)
     fileData: { type: DataTypes.TEXT, allowNull: true }, // Base64 representation of the uploaded file
     isBlocked: { type: DataTypes.BOOLEAN, defaultValue: false }, // Admin can block material from students
+    tenantId: { type: DataTypes.STRING, allowNull: true },
   });
 
   SQL.Activity = sequelize.define('Activity', {
@@ -84,6 +87,7 @@ function initSequelizeModels() {
     fileType: { type: DataTypes.STRING, allowNull: true }, // pdf, doc, etc.
     fileData: { type: DataTypes.TEXT, allowNull: true },   // Base64 file content
     isBlocked: { type: DataTypes.BOOLEAN, defaultValue: false }, // Admin can block activity from students
+    tenantId: { type: DataTypes.STRING, allowNull: true },
   });
 
   SQL.Submission = sequelize.define('Submission', {
@@ -97,6 +101,7 @@ function initSequelizeModels() {
     feedback: { type: DataTypes.TEXT, allowNull: true },
     isMarked: { type: DataTypes.BOOLEAN, defaultValue: false },
     markedAt: { type: DataTypes.DATE, allowNull: true },
+    tenantId: { type: DataTypes.STRING, allowNull: true },
   });
 
   SQL.Lesson = sequelize.define('Lesson', {
@@ -106,6 +111,7 @@ function initSequelizeModels() {
     subjectId: { type: DataTypes.INTEGER, allowNull: false },
     level: { type: DataTypes.STRING, allowNull: false }, // P5, S3
     teacherId: { type: DataTypes.INTEGER, allowNull: false },
+    tenantId: { type: DataTypes.STRING, allowNull: true },
   });
 
   SQL.Feedback = sequelize.define('Feedback', {
@@ -123,6 +129,24 @@ function initSequelizeModels() {
     code: { type: DataTypes.STRING, allowNull: false },
     name: { type: DataTypes.STRING, allowNull: false },
     subjectIds: { type: DataTypes.TEXT, allowNull: false }, // JSON array of subject IDs
+    tenantId: { type: DataTypes.STRING, allowNull: true },
+  });
+
+  SQL.Tenant = sequelize.define('Tenant', {
+    name: { type: DataTypes.STRING, allowNull: false },
+    inviteCode: { type: DataTypes.STRING, allowNull: false, unique: true },
+    trialStartDate: { type: DataTypes.DATE, allowNull: false },
+    trialEndDate: { type: DataTypes.DATE, allowNull: false },
+    status: { type: DataTypes.STRING, defaultValue: 'active' }, // active, expired, suspended
+    revenueGenerated: { type: DataTypes.FLOAT, defaultValue: 0 },
+  });
+
+  SQL.ActivationKey = sequelize.define('ActivationKey', {
+    key: { type: DataTypes.STRING, allowNull: false, unique: true },
+    tenantId: { type: DataTypes.STRING, allowNull: true },
+    durationDays: { type: DataTypes.INTEGER, defaultValue: 90 }, // One term approx 90 days
+    price: { type: DataTypes.FLOAT, defaultValue: 500000 },
+    isUsed: { type: DataTypes.BOOLEAN, defaultValue: false },
   });
 }
 
@@ -146,6 +170,7 @@ const UserSchema = new mongoose.Schema({
   principalSubjects: { type: String }, // JSON array of 3 principal subject IDs
   subsidiarySubjects: { type: String }, // JSON array of 2 subsidiary subject IDs (includes GP)
   photoData: { type: String }, // base64 profile picture string
+  tenantId: { type: String }, // ID of the school platform
 }, { timestamps: true });
 
 const SubjectSchema = new mongoose.Schema({
@@ -156,6 +181,7 @@ const SubjectSchema = new mongoose.Schema({
   category: { type: String, default: 'Both' }, // Art, Science, Both
   code: { type: String },
   classification: { type: String }, // Compulsory, Optional, Principal, Subsidiary
+  tenantId: { type: String },
 }, { timestamps: true });
 
 const MaterialSchema = new mongoose.Schema({
@@ -170,6 +196,7 @@ const MaterialSchema = new mongoose.Schema({
   fileType: { type: String }, // File extension/type
   fileData: { type: String }, // Base64 raw content
   isBlocked: { type: Boolean, default: false }, // Admin can block material from students
+  tenantId: { type: String },
 }, { timestamps: true });
 
 const ActivitySchema = new mongoose.Schema({
@@ -185,6 +212,7 @@ const ActivitySchema = new mongoose.Schema({
   fileType: { type: String }, // File extension
   fileData: { type: String }, // Base64 file content
   isBlocked: { type: Boolean, default: false }, // Admin can block activity from students
+  tenantId: { type: String },
 }, { timestamps: true });
 
 const SubmissionSchema = new mongoose.Schema({
@@ -198,6 +226,7 @@ const SubmissionSchema = new mongoose.Schema({
   feedback: { type: String },
   isMarked: { type: Boolean, default: false },
   markedAt: { type: Date },
+  tenantId: { type: String },
 }, { timestamps: true });
 
 const LessonSchema = new mongoose.Schema({
@@ -207,6 +236,7 @@ const LessonSchema = new mongoose.Schema({
   subjectId: { type: String, required: true },
   level: { type: String, required: true },
   teacherId: { type: String, required: true },
+  tenantId: { type: String },
 }, { timestamps: true });
 
 const FeedbackSchema = new mongoose.Schema({
@@ -224,6 +254,24 @@ const CombinationSchema = new mongoose.Schema({
   code: { type: String, required: true },
   name: { type: String, required: true },
   subjectIds: { type: String, required: true }, // JSON array of subject IDs
+  tenantId: { type: String },
+}, { timestamps: true });
+
+const TenantSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  inviteCode: { type: String, required: true, unique: true },
+  trialStartDate: { type: Date, required: true },
+  trialEndDate: { type: Date, required: true },
+  status: { type: String, default: 'active' }, // active, expired, suspended
+  revenueGenerated: { type: Number, default: 0 },
+}, { timestamps: true });
+
+const ActivationKeySchema = new mongoose.Schema({
+  key: { type: String, required: true, unique: true },
+  tenantId: { type: String }, // null if unused
+  durationDays: { type: Number, default: 90 }, // One term approx 90 days
+  price: { type: Number, default: 500000 },
+  isUsed: { type: Boolean, default: false },
 }, { timestamps: true });
 
 function initMongooseModels() {
@@ -236,6 +284,8 @@ function initMongooseModels() {
   Mongo.Feedback = mongoose.models.Feedback || mongoose.model('Feedback', FeedbackSchema);
   Mongo.ChatbotResponse = mongoose.models.ChatbotResponse || mongoose.model('ChatbotResponse', ChatbotResponseSchema);
   Mongo.Combination = mongoose.models.Combination || mongoose.model('Combination', CombinationSchema);
+  Mongo.Tenant = mongoose.models.Tenant || mongoose.model('Tenant', TenantSchema);
+  Mongo.ActivationKey = mongoose.models.ActivationKey || mongoose.model('ActivationKey', ActivationKeySchema);
 }
 
 // ==========================================
@@ -668,6 +718,84 @@ const Combination = {
   }
 };
 
+const Tenant = {
+  create: async (data) => {
+    const model = getModel('Tenant');
+    if (dbType() === 'mongodb') return await model.create(data);
+    const res = await model.create(data);
+    return res.toJSON();
+  },
+  findOne: async (query) => {
+    const model = getModel('Tenant');
+    if (dbType() === 'mongodb') return await model.findOne(query);
+    const res = await model.findOne({ where: query });
+    return res ? res.toJSON() : null;
+  },
+  findById: async (id) => {
+    const model = getModel('Tenant');
+    if (dbType() === 'mongodb') return await model.findById(id);
+    const res = await model.findByPk(id);
+    return res ? res.toJSON() : null;
+  },
+  findAll: async (query = {}) => {
+    const model = getModel('Tenant');
+    if (dbType() === 'mongodb') return await model.find(query);
+    const res = await model.findAll({ where: query });
+    return res.map(r => r.toJSON());
+  },
+  update: async (id, data) => {
+    const model = getModel('Tenant');
+    if (dbType() === 'mongodb') return await model.findByIdAndUpdate(id, data, { new: true });
+    await model.update(data, { where: { id } });
+    const updated = await model.findByPk(id);
+    return updated ? updated.toJSON() : null;
+  },
+  delete: async (id) => {
+    const model = getModel('Tenant');
+    if (dbType() === 'mongodb') return await model.findByIdAndDelete(id);
+    return await model.destroy({ where: { id } });
+  }
+};
+
+const ActivationKey = {
+  create: async (data) => {
+    const model = getModel('ActivationKey');
+    if (dbType() === 'mongodb') return await model.create(data);
+    const res = await model.create(data);
+    return res.toJSON();
+  },
+  findOne: async (query) => {
+    const model = getModel('ActivationKey');
+    if (dbType() === 'mongodb') return await model.findOne(query);
+    const res = await model.findOne({ where: query });
+    return res ? res.toJSON() : null;
+  },
+  findById: async (id) => {
+    const model = getModel('ActivationKey');
+    if (dbType() === 'mongodb') return await model.findById(id);
+    const res = await model.findByPk(id);
+    return res ? res.toJSON() : null;
+  },
+  findAll: async (query = {}) => {
+    const model = getModel('ActivationKey');
+    if (dbType() === 'mongodb') return await model.find(query);
+    const res = await model.findAll({ where: query });
+    return res.map(r => r.toJSON());
+  },
+  update: async (id, data) => {
+    const model = getModel('ActivationKey');
+    if (dbType() === 'mongodb') return await model.findByIdAndUpdate(id, data, { new: true });
+    await model.update(data, { where: { id } });
+    const updated = await model.findByPk(id);
+    return updated ? updated.toJSON() : null;
+  },
+  delete: async (id) => {
+    const model = getModel('ActivationKey');
+    if (dbType() === 'mongodb') return await model.findByIdAndDelete(id);
+    return await model.destroy({ where: { id } });
+  }
+};
+
 module.exports = {
   syncDB,
   User,
@@ -678,5 +806,7 @@ module.exports = {
   Lesson,
   Feedback,
   ChatbotResponse,
-  Combination
+  Combination,
+  Tenant,
+  ActivationKey
 };

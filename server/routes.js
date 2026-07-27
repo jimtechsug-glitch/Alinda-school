@@ -2,7 +2,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const axios = require('axios');
-const { User, Subject, Material, Activity, Submission, Lesson, Feedback, ChatbotResponse, Combination } = require('./models');
+const { User, Subject, Material, Activity, Submission, Lesson, Feedback, ChatbotResponse, Combination, Tenant, ActivationKey } = require('./models');
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'alinda_digital_learners_secret_key_2026';
@@ -40,9 +40,25 @@ const requireRole = (roles) => (req, res, next) => {
 // Register User
 router.post('/auth/register', async (req, res) => {
   try {
-    const { name, phone, username, password, role, level, combination, principalSubjects, subsidiarySubjects } = req.body;
+    const { name, phone, username, password, role, level, combination, principalSubjects, subsidiarySubjects, inviteCode } = req.body;
     if (!name || !phone || !username || !password || !role) {
       return res.status(400).json({ message: 'Please enter all fields' });
+    }
+
+    if (role === 'teacher' || role === 'admin' || role === 'superadmin') {
+      return res.status(403).json({ message: 'Only students can self-register. Staff must be added by administrators.' });
+    }
+
+    if (role === 'student' && !inviteCode) {
+      return res.status(400).json({ message: 'Invite code is required' });
+    }
+
+    const { Tenant } = require('./models');
+    let tenantId = null;
+    if (role === 'student') {
+      const tenant = await Tenant.findOne({ inviteCode });
+      if (!tenant) return res.status(400).json({ message: 'Invalid invite code' });
+      tenantId = tenant.id;
     }
 
     const existing = await User.findOne({ username });
@@ -51,8 +67,7 @@ router.post('/auth/register', async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    // Student needs admin approval; teachers and admins do not for ease of testing
-    const isApproved = role !== 'student'; 
+    const isApproved = false; // Students must be approved by school admin
 
     const user = await User.create({
       name,
@@ -60,16 +75,17 @@ router.post('/auth/register', async (req, res) => {
       username,
       password: hashedPassword,
       role,
-      level: role === 'student' ? level : null,
-      combination: role === 'student' ? combination : null, // Save A-Level combination (e.g. PCM, BCM)
+      level,
+      combination, // Save A-Level combination (e.g. PCM, BCM)
       isApproved,
-      profile: role === 'teacher' ? 'Facilitator' : '',
-      principalSubjects: role === 'student' ? (typeof principalSubjects === 'string' ? principalSubjects : JSON.stringify(principalSubjects)) : null,
-      subsidiarySubjects: role === 'student' ? (typeof subsidiarySubjects === 'string' ? subsidiarySubjects : JSON.stringify(subsidiarySubjects)) : null,
+      profile: '',
+      principalSubjects: typeof principalSubjects === 'string' ? principalSubjects : JSON.stringify(principalSubjects),
+      subsidiarySubjects: typeof subsidiarySubjects === 'string' ? subsidiarySubjects : JSON.stringify(subsidiarySubjects),
+      tenantId
     });
 
     res.status(201).json({
-      message: role === 'student' ? 'Registration pending admin approval.' : 'User registered successfully.',
+      message: 'Registration pending school admin approval.',
       user: { id: user.id, username: user.username, role: user.role, isApproved: user.isApproved }
     });
   } catch (err) {
@@ -85,12 +101,8 @@ router.post('/auth/login', async (req, res) => {
       return res.status(400).json({ message: 'Please fill in all fields' });
     }
 
-    // Try finding by username or phone
     let user = await User.findOne({ username: loginKey });
-    if (!user) {
-      user = await User.findOne({ phone: loginKey });
-    }
-
+    if (!user) user = await User.findOne({ phone: loginKey });
     if (!user) return res.status(400).json({ message: 'Invalid credentials' });
 
     const isMatch = await bcrypt.compare(password, user.password);
@@ -99,19 +111,37 @@ router.post('/auth/login', async (req, res) => {
     if (!user.isApproved) {
       return res.status(403).json({ message: 'Your account is pending administrator approval.' });
     }
-
     if (user.isSuspended) {
       return res.status(403).json({ message: 'Your account has been suspended. Please contact the administrator.' });
     }
 
-    // Include level and combination in the JWT token for backend filtering
+    const { Tenant } = require('./models');
+    if (user.role !== 'superadmin' && user.tenantId) {
+      const tenant = await Tenant.findById(user.tenantId);
+      if (tenant) {
+        if (tenant.status === 'suspended') {
+          return res.status(403).json({ message: 'Your school platform has been suspended.' });
+        }
+        if (tenant.trialEndDate && new Date() > new Date(tenant.trialEndDate)) {
+          if (tenant.status !== 'expired') {
+            await Tenant.update(tenant.id, { status: 'expired' });
+            tenant.status = 'expired';
+          }
+        }
+        if (tenant.status === 'expired' && user.role !== 'admin') {
+          return res.status(403).json({ message: 'Your school platform subscription has expired. Please contact your school administrator.' });
+        }
+      }
+    }
+
     const token = jwt.sign({ 
       id: user.id, 
       username: user.username, 
       role: user.role, 
       name: user.name, 
       level: user.level,
-      combination: user.combination 
+      combination: user.combination,
+      tenantId: user.tenantId 
     }, JWT_SECRET, { expiresIn: '1d' });
 
     res.json({
@@ -126,7 +156,8 @@ router.post('/auth/login', async (req, res) => {
         phone: user.phone,
         assignedTeacherId: user.assignedTeacherId,
         profile: user.profile,
-        photoData: user.photoData
+        photoData: user.photoData,
+        tenantId: user.tenantId
       }
     });
   } catch (err) {
@@ -185,13 +216,173 @@ router.put('/auth/change-password', verifyToken, async (req, res) => {
 });
 
 // ==========================================
+// SUPER-ADMIN MANAGEMENT
+// ==========================================
+
+// Get all tenants (Superadmin)
+router.get('/superadmin/tenants', requireRole(['superadmin']), async (req, res) => {
+  try {
+    const tenants = await Tenant.findAll({});
+    res.json(tenants);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to retrieve tenants', error: err.message });
+  }
+});
+
+// Create a new Tenant/School (Superadmin)
+router.post('/superadmin/tenants', requireRole(['superadmin']), async (req, res) => {
+  try {
+    const { name, trialDays = 14 } = req.body;
+    if (!name) return res.status(400).json({ message: 'School name is required' });
+
+    // Generate unique invite code
+    const inviteCode = name.substring(0, 3).toUpperCase() + Math.floor(1000 + Math.random() * 9000);
+    const startDate = new Date();
+    const endDate = new Date();
+    endDate.setDate(startDate.getDate() + trialDays);
+
+    const tenant = await Tenant.create({
+      name,
+      inviteCode,
+      trialStartDate: startDate,
+      trialEndDate: endDate,
+      status: 'active',
+      revenueGenerated: 0
+    });
+
+    res.status(201).json({ message: 'School Platform created', tenant });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to create tenant', error: err.message });
+  }
+});
+
+// Create School Admin for a Tenant (Superadmin)
+router.post('/superadmin/tenants/:id/admin', requireRole(['superadmin']), async (req, res) => {
+  try {
+    const { name, phone, username, password } = req.body;
+    const tenantId = req.params.id;
+    const tenant = await Tenant.findById(tenantId);
+    if (!tenant) return res.status(404).json({ message: 'School Platform not found' });
+
+    const existing = await User.findOne({ username });
+    if (existing) return res.status(400).json({ message: 'Username already exists' });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const adminUser = await User.create({
+      name,
+      phone,
+      username,
+      password: hashedPassword,
+      role: 'admin',
+      isApproved: true,
+      tenantId,
+      profile: 'School Administrator'
+    });
+
+    res.status(201).json({ message: 'School Admin created successfully', user: adminUser });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to create school admin', error: err.message });
+  }
+});
+
+// Generate Activation Key (Superadmin)
+router.post('/superadmin/activation-keys', requireRole(['superadmin']), async (req, res) => {
+  try {
+    const { durationDays = 90, price = 500000, count = 1 } = req.body;
+    const keys = [];
+    for (let i = 0; i < count; i++) {
+      const keyString = 'ALINDA-' + Math.random().toString(36).substring(2, 10).toUpperCase();
+      const key = await ActivationKey.create({
+        key: keyString,
+        durationDays,
+        price,
+        isUsed: false
+      });
+      keys.push(key);
+    }
+    res.status(201).json({ message: `${count} activation keys generated`, keys });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to generate keys', error: err.message });
+  }
+});
+
+// Get Activation Keys (Superadmin)
+router.get('/superadmin/activation-keys', requireRole(['superadmin']), async (req, res) => {
+  try {
+    const keys = await ActivationKey.findAll({});
+    res.json(keys);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to retrieve keys', error: err.message });
+  }
+});
+
+// Apply Activation Key (School Admin)
+router.post('/admin/apply-key', requireRole(['admin']), async (req, res) => {
+  try {
+    const { key } = req.body;
+    if (!key) return res.status(400).json({ message: 'Activation key is required' });
+    
+    const activationKey = await ActivationKey.findOne({ key, isUsed: false });
+    if (!activationKey) return res.status(400).json({ message: 'Invalid or already used activation key' });
+    
+    const tenant = await Tenant.findById(req.user.tenantId);
+    if (!tenant) return res.status(404).json({ message: 'Tenant not found' });
+    
+    let newEndDate = new Date();
+    if (tenant.trialEndDate && new Date(tenant.trialEndDate) > new Date()) {
+       newEndDate = new Date(tenant.trialEndDate);
+    }
+    newEndDate.setDate(newEndDate.getDate() + activationKey.durationDays);
+    
+    await Tenant.update(tenant.id, { 
+      trialEndDate: newEndDate, 
+      status: 'active',
+      revenueGenerated: tenant.revenueGenerated + activationKey.price
+    });
+    
+    await ActivationKey.update(activationKey.id, {
+       isUsed: true,
+       tenantId: tenant.id
+    });
+    
+    res.json({ message: 'Activation key applied successfully! School subscription extended.', newEndDate });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to apply key', error: err.message });
+  }
+});
+
+// Create Teacher (School Admin)
+router.post('/admin/teachers', requireRole(['admin']), async (req, res) => {
+  try {
+    const { name, phone, username, password, profile } = req.body;
+    const existing = await User.findOne({ username });
+    if (existing) return res.status(400).json({ message: 'Username already exists' });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const teacher = await User.create({
+      name,
+      phone,
+      username,
+      password: hashedPassword,
+      role: 'teacher',
+      isApproved: true,
+      tenantId: req.user.tenantId,
+      profile: profile || 'Facilitator'
+    });
+    res.status(201).json({ message: 'Teacher created successfully', teacher });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to create teacher', error: err.message });
+  }
+});
+
+// ==========================================
 // ADMIN USER MANAGEMENT
 // ==========================================
 
 // Get All Users (Admin)
 router.get('/admin/users', requireRole(['admin']), async (req, res) => {
   try {
-    const users = await User.findAll({});
+    const users = await User.findAll({ tenantId: req.user.tenantId });
     res.json(users);
   } catch (err) {
     res.status(500).json({ message: 'Failed to retrieve users', error: err.message });
@@ -287,17 +478,31 @@ router.put('/admin/users/:id/suspend', requireRole(['admin']), async (req, res) 
 // Retrieve all teachers (for Guest and Admin/Student view)
 router.get('/teachers', async (req, res) => {
   try {
-    const teachers = await User.findAll({ role: 'teacher' });
-    // Admin gets full data; public/guests get limited info
+    let query = { role: 'teacher' };
     const authHeader = req.headers.authorization;
     let isAdmin = false;
+    let userTenantId = null;
+
     if (authHeader) {
       try {
         const tok = authHeader.split(' ')[1];
         const dec = jwt.verify(tok, JWT_SECRET);
         isAdmin = dec.role === 'admin';
+        userTenantId = dec.tenantId;
       } catch (_) {}
     }
+
+    if (userTenantId) {
+      query.tenantId = userTenantId;
+    } else {
+      // Guests don't have a tenantId. In a strict multi-tenant system, guests shouldn't see teachers globally.
+      // But we will fetch teachers of the Default Legacy School, or no teachers at all.
+      // For now, let's just return empty for unauthenticated guests, or require invite code to view.
+      return res.json([]);
+    }
+
+    const teachers = await User.findAll(query);
+    
     if (isAdmin) {
       res.json(teachers);
     } else {
@@ -335,7 +540,8 @@ router.post('/subjects', requireRole(['admin']), async (req, res) => {
       description,
       category: category || 'Both',
       code: code || null,
-      classification: classification || null
+      classification: classification || null,
+      tenantId: req.user.tenantId
     });
     res.status(201).json({ message: 'Subject created successfully', subject });
   } catch (err) {
@@ -367,9 +573,13 @@ router.put('/subjects/:id', requireRole(['admin']), async (req, res) => {
 });
 
 // List Subjects
-router.get('/subjects', async (req, res) => {
+router.get('/subjects', verifyToken, async (req, res) => {
   try {
-    const subjects = await Subject.findAll({});
+    let query = {};
+    if (req.user.role !== 'superadmin') {
+      query.tenantId = req.user.tenantId;
+    }
+    const subjects = await Subject.findAll(query);
     res.json(subjects);
   } catch (err) {
     res.status(500).json({ message: 'Error loading subjects', error: err.message });
@@ -427,7 +637,8 @@ router.post('/combinations', requireRole(['admin']), async (req, res) => {
     const comb = await Combination.create({
       code,
       name,
-      subjectIds: typeof subjectIds === 'string' ? subjectIds : JSON.stringify(subjectIds)
+      subjectIds: typeof subjectIds === 'string' ? subjectIds : JSON.stringify(subjectIds),
+      tenantId: req.user.tenantId
     });
     res.status(201).json({ message: 'Combination created successfully', combination: comb });
   } catch (err) {
@@ -454,10 +665,21 @@ router.put('/combinations/:id', requireRole(['admin']), async (req, res) => {
   }
 });
 
-// List Combinations (Public)
+// List Combinations (Public/Auth)
 router.get('/combinations', async (req, res) => {
   try {
-    const combinations = await Combination.findAll({});
+    let query = {};
+    const authHeader = req.headers.authorization;
+    if (authHeader) {
+      try {
+        const token = authHeader.split(' ')[1];
+        const dec = jwt.verify(token, JWT_SECRET);
+        if (dec.role !== 'superadmin') {
+          query.tenantId = dec.tenantId;
+        }
+      } catch (_) {}
+    }
+    const combinations = await Combination.findAll(query);
     res.json(combinations);
   } catch (err) {
     res.status(500).json({ message: 'Error loading combinations', error: err.message });
@@ -492,7 +714,8 @@ router.post('/materials', requireRole(['admin', 'teacher']), async (req, res) =>
       combination: combination || null,
       fileName: fileName || null,
       fileType: fileType || null,
-      fileData: fileData || null // Holds base64 encoded document content
+      fileData: fileData || null, // Holds base64 encoded document content
+      tenantId: req.user.tenantId
     });
     res.status(201).json({ message: 'Material uploaded successfully', material });
   } catch (err) {
@@ -503,8 +726,24 @@ router.post('/materials', requireRole(['admin', 'teacher']), async (req, res) =>
 // Get Materials (with Uganda Class/Level and A-Level Combination filtering)
 router.get('/materials', async (req, res) => {
   try {
-    const materials = await Material.findAll({});
-    const users = await User.findAll({});
+    let query = {};
+    let usersQuery = {};
+    const authHeader = req.headers.authorization;
+    let decoded = null;
+    
+    if (authHeader) {
+      try {
+        const token = authHeader.split(' ')[1];
+        decoded = jwt.verify(token, JWT_SECRET);
+        if (decoded && decoded.role !== 'superadmin') {
+          query.tenantId = decoded.tenantId;
+          usersQuery.tenantId = decoded.tenantId;
+        }
+      } catch (err) {}
+    }
+
+    const materials = await Material.findAll(query);
+    const users = await User.findAll(usersQuery);
 
     const materialsWithCreator = materials.map(m => {
       const creator = users.find(u => u.id == m.teacherId);
@@ -516,12 +755,8 @@ router.get('/materials', async (req, res) => {
     });
     
     // Check if token exists in header to filter for student roles
-    const authHeader = req.headers.authorization;
-    if (authHeader) {
+    if (decoded) {
       try {
-        const token = authHeader.split(' ')[1];
-        const decoded = jwt.verify(token, JWT_SECRET);
-        
         if (decoded.role === 'student') {
           // Always read level/combination from live DB (not JWT) so admin class-updates take effect immediately
           const liveStudent = users.find(u => u.id == decoded.id);
