@@ -572,11 +572,18 @@ router.put('/subjects/:id', requireRole(['admin']), async (req, res) => {
 });
 
 // List Subjects
-router.get('/subjects', verifyToken, async (req, res) => {
+router.get('/subjects', async (req, res) => {
   try {
     let query = {};
-    if (req.user.role !== 'superadmin' && req.user.tenantId) {
-      query.tenantId = req.user.tenantId;
+    const authHeader = req.headers.authorization;
+    if (authHeader) {
+      try {
+        const tok = authHeader.split(' ')[1];
+        const dec = jwt.verify(tok, JWT_SECRET);
+        if (dec.role !== 'superadmin' && dec.tenantId) {
+          query.tenantId = dec.tenantId;
+        }
+      } catch (_) {}
     }
     const subjects = await Subject.findAll(query);
     res.json(subjects);
