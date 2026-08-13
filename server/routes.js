@@ -950,13 +950,13 @@ router.put('/materials/:id/block', requireRole(['admin']), async (req, res) => {
 // Delete Material (Admin & Teacher who created it)
 router.delete('/materials/:id', requireRole(['admin', 'teacher']), async (req, res) => {
   try {
-    const mat = await Material.findOne({ id: req.params.id });
+    const mat = await Material.findById(req.params.id);
     if (!mat) {
       return res.status(404).json({ message: 'Material not found' });
     }
     
     // Teachers can only delete their own materials
-    if (req.user.role === 'teacher' && mat.teacherId != req.user.id) {
+    if (req.user.role === 'teacher' && String(mat.teacherId) !== String(req.user.id)) {
       return res.status(403).json({ message: 'You are not authorized to modify this material.' });
     }
 

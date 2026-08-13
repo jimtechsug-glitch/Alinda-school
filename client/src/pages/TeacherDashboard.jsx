@@ -109,13 +109,22 @@ export default function TeacherDashboard() {
 
   const addMaterial = async (e) => {
     e.preventDefault();
-    const res = await fetch(`${API}/materials`, { method: 'POST', headers: authHeaders, body: JSON.stringify(matForm) });
-    const d = await res.json();
-    showMsg(d.message); fetchAll();
-    setMatForm({ title: '', type: 'notes', contentUrl: '', subjectId: '', classLevel: '', combination: '', fileName: '', fileType: '', fileData: '' });
-    const fi = document.getElementById('teacher-file-upload');
-    if (fi) fi.value = '';
-    setShowMatForm(false);
+    try {
+      const res = await fetch(`${API}/materials`, { method: 'POST', headers: authHeaders, body: JSON.stringify(matForm) });
+      const d = await res.json();
+      if (!res.ok) {
+        showMsg(d.message || 'Upload failed. Please check the file and details.');
+        return;
+      }
+      showMsg(d.message || 'Material uploaded successfully!');
+      fetchAll();
+      setMatForm({ title: '', type: 'notes', contentUrl: '', subjectId: '', classLevel: '', combination: '', fileName: '', fileType: '', fileData: '' });
+      const fi = document.getElementById('teacher-file-upload');
+      if (fi) fi.value = '';
+      setShowMatForm(false);
+    } catch (err) {
+      showMsg('Upload failed due to network or server error.');
+    }
   };
 
   // Activity form
@@ -171,11 +180,23 @@ export default function TeacherDashboard() {
   };
 
   const deleteMaterial = async (id) => {
+    if (!id) {
+      showMsg('Invalid material ID.');
+      return;
+    }
     if (!window.confirm('Are you sure you want to delete this study material/resource?')) return;
-    const res = await fetch(`${API}/materials/${id}`, { method: 'DELETE', headers: authHeaders });
-    const d = await res.json();
-    showMsg(d.message || 'Material deleted.');
-    fetchAll();
+    try {
+      const res = await fetch(`${API}/materials/${id}`, { method: 'DELETE', headers: authHeaders });
+      const d = await res.json();
+      if (!res.ok) {
+        showMsg(d.message || 'Failed to delete material.');
+        return;
+      }
+      showMsg(d.message || 'Material deleted.');
+      fetchAll();
+    } catch {
+      showMsg('Failed to delete material due to network error.');
+    }
   };
 
   // Marking

@@ -386,12 +386,22 @@ export default function AdminDashboard() {
   };
   const addMaterial = async (e) => {
     e.preventDefault();
-    const res = await fetch(`${API}/materials`, { method: 'POST', headers: authHeaders, body: JSON.stringify(matForm) });
-    const d = await res.json();
-    showMsg(d.message); fetchAll();
-    setMatForm({ title: '', type: 'notes', contentUrl: '', subjectId: '', classLevel: '', combination: '', fileName: '', fileType: '', fileData: '' });
-    const fi = document.getElementById('admin-file-upload');
-    if (fi) fi.value = '';
+    try {
+      const res = await fetch(`${API}/materials`, { method: 'POST', headers: authHeaders, body: JSON.stringify(matForm) });
+      const d = await res.json();
+      if (!res.ok) {
+        showMsg(d.message || 'Upload failed. Please check file size and required fields.');
+        return;
+      }
+      showMsg(d.message || 'Material uploaded successfully!');
+      fetchAll();
+      setMatForm({ title: '', type: 'notes', contentUrl: '', subjectId: '', classLevel: '', combination: '', fileName: '', fileType: '', fileData: '' });
+      const fi = document.getElementById('admin-file-upload');
+      if (fi) fi.value = '';
+      closeForm('material');
+    } catch (err) {
+      showMsg('Upload failed due to network or server error.');
+    }
   };
 
   // Material edit/block
@@ -490,9 +500,23 @@ export default function AdminDashboard() {
   };
 
   const deleteItem = async (endpoint, id) => {
+    if (!id) {
+      showMsg('Invalid item ID.');
+      return;
+    }
     if (!window.confirm('Are you sure you want to delete this?')) return;
-    await fetch(`${API}/${endpoint}/${id}`, { method: 'DELETE', headers: authHeaders });
-    showMsg('Deleted successfully!'); fetchAll();
+    try {
+      const res = await fetch(`${API}/${endpoint}/${id}`, { method: 'DELETE', headers: authHeaders });
+      const d = await res.json();
+      if (!res.ok) {
+        showMsg(d.message || 'Failed to delete.');
+        return;
+      }
+      showMsg(d.message || 'Deleted successfully!');
+      fetchAll();
+    } catch {
+      showMsg('Delete failed due to network error.');
+    }
   };
 
   const pendingStudents = students.filter(s => !s.isApproved);

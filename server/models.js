@@ -6,6 +6,7 @@ mongoose.plugin((schema) => {
   schema.set('toJSON', {
     virtuals: true,
     transform: (doc, ret) => {
+      ret.id = ret._id ? ret._id.toString() : (ret.id || (doc._id ? doc._id.toString() : undefined));
       delete ret._id;
       delete ret.__v;
     }
@@ -13,6 +14,7 @@ mongoose.plugin((schema) => {
   schema.set('toObject', {
     virtuals: true,
     transform: (doc, ret) => {
+      ret.id = ret._id ? ret._id.toString() : (ret.id || (doc._id ? doc._id.toString() : undefined));
       delete ret._id;
       delete ret.__v;
     }
@@ -314,487 +316,114 @@ function getModel(name) {
   }
 }
 
-// Helper methods to abstract queries
-const User = {
-  findOne: async (query) => {
-    const model = getModel('User');
-    if (dbType() === 'mongodb') {
-      return await model.findOne(query);
-    } else {
-      const res = await model.findOne({ where: query });
-      return res ? res.toJSON() : null;
-    }
-  },
-  findById: async (id) => {
-    const model = getModel('User');
-    if (dbType() === 'mongodb') {
-      return await model.findById(id);
-    } else {
-      const res = await model.findByPk(id);
-      return res ? res.toJSON() : null;
-    }
-  },
-  create: async (data) => {
-    const model = getModel('User');
-    if (dbType() === 'mongodb') {
-      return await model.create(data);
-    } else {
-      const res = await model.create(data);
-      return res.toJSON();
-    }
-  },
-  findAll: async (query = {}) => {
-    const model = getModel('User');
-    if (dbType() === 'mongodb') {
-      return await model.find(query);
-    } else {
-      const res = await model.findAll({ where: query });
-      return res.map(r => r.toJSON());
-    }
-  },
-  update: async (id, data) => {
-    const model = getModel('User');
-    if (dbType() === 'mongodb') {
-      return await model.findByIdAndUpdate(id, data, { new: true });
-    } else {
-      await model.update(data, { where: { id } });
-      const updated = await model.findByPk(id);
-      return updated ? updated.toJSON() : null;
-    }
-  },
-  delete: async (id) => {
-    const model = getModel('User');
-    if (dbType() === 'mongodb') {
-      return await model.findByIdAndDelete(id);
-    } else {
-      return await model.destroy({ where: { id } });
-    }
+function toPlain(doc) {
+  if (!doc) return null;
+  if (Array.isArray(doc)) return doc.map(toPlain);
+  if (typeof doc.toJSON === 'function') {
+    const json = doc.toJSON();
+    if (json._id && !json.id) json.id = json._id.toString();
+    if (!json.id && doc._id) json.id = doc._id.toString();
+    return json;
   }
-};
+  if (doc._id && !doc.id) {
+    return { ...doc, id: doc._id.toString() };
+  }
+  return doc;
+}
 
-const Subject = {
-  findOne: async (query) => {
-    const model = getModel('Subject');
-    if (dbType() === 'mongodb') {
-      return await model.findOne(query);
-    } else {
-      const res = await model.findOne({ where: query });
-      return res ? res.toJSON() : null;
-    }
-  },
-  findById: async (id) => {
-    const model = getModel('Subject');
-    if (dbType() === 'mongodb') {
-      return await model.findById(id);
-    } else {
-      const res = await model.findByPk(id);
-      return res ? res.toJSON() : null;
-    }
-  },
-  create: async (data) => {
-    const model = getModel('Subject');
-    if (dbType() === 'mongodb') {
-      return await model.create(data);
-    } else {
-      const res = await model.create(data);
-      return res.toJSON();
-    }
-  },
-  findAll: async (query = {}) => {
-    const model = getModel('Subject');
-    if (dbType() === 'mongodb') {
-      return await model.find(query);
-    } else {
-      const res = await model.findAll({ where: query });
-      return res.map(r => r.toJSON());
-    }
-  },
-  update: async (id, data) => {
-    const model = getModel('Subject');
-    if (dbType() === 'mongodb') {
-      return await model.findByIdAndUpdate(id, data, { new: true });
-    } else {
-      await model.update(data, { where: { id } });
-      return (await model.findByPk(id)).toJSON();
-    }
-  },
-  delete: async (id) => {
-    const model = getModel('Subject');
-    if (dbType() === 'mongodb') {
-      return await model.findByIdAndDelete(id);
-    } else {
-      return await model.destroy({ where: { id } });
-    }
+function normalizeMongoQuery(query = {}) {
+  if (!query || typeof query !== 'object') return query;
+  const clean = { ...query };
+  if (clean.id !== undefined) {
+    clean._id = clean.id;
+    delete clean.id;
   }
-};
+  return clean;
+}
 
-const Material = {
-  create: async (data) => {
-    const model = getModel('Material');
-    if (dbType() === 'mongodb') {
-      return await model.create(data);
-    } else {
-      const res = await model.create(data);
-      return res.toJSON();
+function createModelWrapper(name) {
+  return {
+    findOne: async (query = {}) => {
+      const model = getModel(name);
+      if (dbType() === 'mongodb') {
+        const doc = await model.findOne(normalizeMongoQuery(query));
+        return toPlain(doc);
+      } else {
+        const res = await model.findOne({ where: query });
+        return res ? res.toJSON() : null;
+      }
+    },
+    findById: async (id) => {
+      const model = getModel(name);
+      if (dbType() === 'mongodb') {
+        if (!id) return null;
+        try {
+          const doc = await model.findById(id);
+          return toPlain(doc);
+        } catch (err) {
+          const doc = await model.findOne({ _id: id }).catch(() => null);
+          return toPlain(doc);
+        }
+      } else {
+        const res = await model.findByPk(id);
+        return res ? res.toJSON() : null;
+      }
+    },
+    create: async (data) => {
+      const model = getModel(name);
+      if (dbType() === 'mongodb') {
+        const doc = await model.create(data);
+        return toPlain(doc);
+      } else {
+        const res = await model.create(data);
+        return res.toJSON();
+      }
+    },
+    findAll: async (query = {}) => {
+      const model = getModel(name);
+      if (dbType() === 'mongodb') {
+        const docs = await model.find(normalizeMongoQuery(query));
+        return docs.map(toPlain);
+      } else {
+        const res = await model.findAll({ where: query });
+        return res.map(r => r.toJSON());
+      }
+    },
+    update: async (id, data) => {
+      const model = getModel(name);
+      if (dbType() === 'mongodb') {
+        if (!id) return null;
+        const doc = await model.findByIdAndUpdate(id, data, { new: true });
+        return toPlain(doc);
+      } else {
+        await model.update(data, { where: { id } });
+        const updated = await model.findByPk(id);
+        return updated ? updated.toJSON() : null;
+      }
+    },
+    delete: async (id) => {
+      const model = getModel(name);
+      if (dbType() === 'mongodb') {
+        if (!id) return null;
+        return await model.findByIdAndDelete(id);
+      } else {
+        return await model.destroy({ where: { id } });
+      }
     }
-  },
-  findOne: async (query) => {
-    const model = getModel('Material');
-    if (dbType() === 'mongodb') {
-      return await model.findOne(query);
-    } else {
-      const res = await model.findOne({ where: query });
-      return res ? res.toJSON() : null;
-    }
-  },
-  findById: async (id) => {
-    const model = getModel('Material');
-    if (dbType() === 'mongodb') {
-      return await model.findById(id);
-    } else {
-      const res = await model.findByPk(id);
-      return res ? res.toJSON() : null;
-    }
-  },
-  findAll: async (query = {}) => {
-    const model = getModel('Material');
-    if (dbType() === 'mongodb') {
-      return await model.find(query);
-    } else {
-      const res = await model.findAll({ where: query });
-      return res.map(r => r.toJSON());
-    }
-  },
-  update: async (id, data) => {
-    const model = getModel('Material');
-    if (dbType() === 'mongodb') {
-      return await model.findByIdAndUpdate(id, data, { new: true });
-    } else {
-      await model.update(data, { where: { id } });
-      const updated = await model.findByPk(id);
-      return updated ? updated.toJSON() : null;
-    }
-  },
-  delete: async (id) => {
-    const model = getModel('Material');
-    if (dbType() === 'mongodb') {
-      return await model.findByIdAndDelete(id);
-    } else {
-      return await model.destroy({ where: { id } });
-    }
-  }
-};
+  };
+}
 
-const Activity = {
-  create: async (data) => {
-    const model = getModel('Activity');
-    if (dbType() === 'mongodb') {
-      return await model.create(data);
-    } else {
-      const res = await model.create(data);
-      return res.toJSON();
-    }
-  },
-  findById: async (id) => {
-    const model = getModel('Activity');
-    if (dbType() === 'mongodb') {
-      return await model.findById(id);
-    } else {
-      const res = await model.findByPk(id);
-      return res ? res.toJSON() : null;
-    }
-  },
-  findAll: async (query = {}) => {
-    const model = getModel('Activity');
-    if (dbType() === 'mongodb') {
-      return await model.find(query);
-    } else {
-      const res = await model.findAll({ where: query });
-      return res.map(r => r.toJSON());
-    }
-  },
-  update: async (id, data) => {
-    const model = getModel('Activity');
-    if (dbType() === 'mongodb') {
-      return await model.findByIdAndUpdate(id, data, { new: true });
-    } else {
-      await model.update(data, { where: { id } });
-      const updated = await model.findByPk(id);
-      return updated ? updated.toJSON() : null;
-    }
-  },
-  delete: async (id) => {
-    const model = getModel('Activity');
-    if (dbType() === 'mongodb') {
-      return await model.findByIdAndDelete(id);
-    } else {
-      return await model.destroy({ where: { id } });
-    }
-  }
-};
-
-const Submission = {
-  create: async (data) => {
-    const model = getModel('Submission');
-    if (dbType() === 'mongodb') {
-      return await model.create(data);
-    } else {
-      const res = await model.create(data);
-      return res.toJSON();
-    }
-  },
-  findById: async (id) => {
-    const model = getModel('Submission');
-    if (dbType() === 'mongodb') {
-      return await model.findById(id);
-    } else {
-      const res = await model.findByPk(id);
-      return res ? res.toJSON() : null;
-    }
-  },
-  findAll: async (query = {}) => {
-    const model = getModel('Submission');
-    if (dbType() === 'mongodb') {
-      return await model.find(query);
-    } else {
-      const res = await model.findAll({ where: query });
-      return res.map(r => r.toJSON());
-    }
-  },
-  update: async (id, data) => {
-    const model = getModel('Submission');
-    if (dbType() === 'mongodb') {
-      return await model.findByIdAndUpdate(id, data, { new: true });
-    } else {
-      await model.update(data, { where: { id } });
-      const updated = await model.findByPk(id);
-      return updated ? updated.toJSON() : null;
-    }
-  }
-};
-
-const Lesson = {
-  create: async (data) => {
-    const model = getModel('Lesson');
-    if (dbType() === 'mongodb') {
-      return await model.create(data);
-    } else {
-      const res = await model.create(data);
-      return res.toJSON();
-    }
-  },
-  findAll: async (query = {}) => {
-    const model = getModel('Lesson');
-    if (dbType() === 'mongodb') {
-      return await model.find(query);
-    } else {
-      const res = await model.findAll({ where: query });
-      return res.map(r => r.toJSON());
-    }
-  },
-  delete: async (id) => {
-    const model = getModel('Lesson');
-    if (dbType() === 'mongodb') {
-      return await model.findByIdAndDelete(id);
-    } else {
-      return await model.destroy({ where: { id } });
-    }
-  }
-};
-
-const Feedback = {
-  create: async (data) => {
-    const model = getModel('Feedback');
-    if (dbType() === 'mongodb') {
-      return await model.create(data);
-    } else {
-      const res = await model.create(data);
-      return res.toJSON();
-    }
-  },
-  findAll: async (query = {}) => {
-    const model = getModel('Feedback');
-    if (dbType() === 'mongodb') {
-      return await model.find(query);
-    } else {
-      const res = await model.findAll({ where: query });
-      return res.map(r => r.toJSON());
-    }
-  }
-};
-
-const ChatbotResponse = {
-  create: async (data) => {
-    const model = getModel('ChatbotResponse');
-    if (dbType() === 'mongodb') {
-      return await model.create(data);
-    } else {
-      const res = await model.create(data);
-      return res.toJSON();
-    }
-  },
-  findOne: async (query) => {
-    const model = getModel('ChatbotResponse');
-    if (dbType() === 'mongodb') {
-      return await model.findOne(query);
-    } else {
-      const res = await model.findOne({ where: query });
-      return res ? res.toJSON() : null;
-    }
-  },
-  findAll: async (query = {}) => {
-    const model = getModel('ChatbotResponse');
-    if (dbType() === 'mongodb') {
-      return await model.find(query);
-    } else {
-      const res = await model.findAll({ where: query });
-      return res.map(r => r.toJSON());
-    }
-  },
-  delete: async (id) => {
-    const model = getModel('ChatbotResponse');
-    if (dbType() === 'mongodb') {
-      return await model.findByIdAndDelete(id);
-    } else {
-      return await model.destroy({ where: { id } });
-    }
-  }
-};
-
-const Combination = {
-  create: async (data) => {
-    const model = getModel('Combination');
-    if (dbType() === 'mongodb') {
-      return await model.create(data);
-    } else {
-      const res = await model.create(data);
-      return res.toJSON();
-    }
-  },
-  findOne: async (query) => {
-    const model = getModel('Combination');
-    if (dbType() === 'mongodb') {
-      return await model.findOne(query);
-    } else {
-      const res = await model.findOne({ where: query });
-      return res ? res.toJSON() : null;
-    }
-  },
-  findById: async (id) => {
-    const model = getModel('Combination');
-    if (dbType() === 'mongodb') {
-      return await model.findById(id);
-    } else {
-      const res = await model.findByPk(id);
-      return res ? res.toJSON() : null;
-    }
-  },
-  findAll: async (query = {}) => {
-    const model = getModel('Combination');
-    if (dbType() === 'mongodb') {
-      return await model.find(query);
-    } else {
-      const res = await model.findAll({ where: query });
-      return res.map(r => r.toJSON());
-    }
-  },
-  update: async (id, data) => {
-    const model = getModel('Combination');
-    if (dbType() === 'mongodb') {
-      return await model.findByIdAndUpdate(id, data, { new: true });
-    } else {
-      await model.update(data, { where: { id } });
-      const updated = await model.findByPk(id);
-      return updated ? updated.toJSON() : null;
-    }
-  },
-  delete: async (id) => {
-    const model = getModel('Combination');
-    if (dbType() === 'mongodb') {
-      return await model.findByIdAndDelete(id);
-    } else {
-      return await model.destroy({ where: { id } });
-    }
-  }
-};
-
-const Tenant = {
-  create: async (data) => {
-    const model = getModel('Tenant');
-    if (dbType() === 'mongodb') return await model.create(data);
-    const res = await model.create(data);
-    return res.toJSON();
-  },
-  findOne: async (query) => {
-    const model = getModel('Tenant');
-    if (dbType() === 'mongodb') return await model.findOne(query);
-    const res = await model.findOne({ where: query });
-    return res ? res.toJSON() : null;
-  },
-  findById: async (id) => {
-    const model = getModel('Tenant');
-    if (dbType() === 'mongodb') return await model.findById(id);
-    const res = await model.findByPk(id);
-    return res ? res.toJSON() : null;
-  },
-  findAll: async (query = {}) => {
-    const model = getModel('Tenant');
-    if (dbType() === 'mongodb') return await model.find(query);
-    const res = await model.findAll({ where: query });
-    return res.map(r => r.toJSON());
-  },
-  update: async (id, data) => {
-    const model = getModel('Tenant');
-    if (dbType() === 'mongodb') return await model.findByIdAndUpdate(id, data, { new: true });
-    await model.update(data, { where: { id } });
-    const updated = await model.findByPk(id);
-    return updated ? updated.toJSON() : null;
-  },
-  delete: async (id) => {
-    const model = getModel('Tenant');
-    if (dbType() === 'mongodb') return await model.findByIdAndDelete(id);
-    return await model.destroy({ where: { id } });
-  }
-};
-
-const ActivationKey = {
-  create: async (data) => {
-    const model = getModel('ActivationKey');
-    if (dbType() === 'mongodb') return await model.create(data);
-    const res = await model.create(data);
-    return res.toJSON();
-  },
-  findOne: async (query) => {
-    const model = getModel('ActivationKey');
-    if (dbType() === 'mongodb') return await model.findOne(query);
-    const res = await model.findOne({ where: query });
-    return res ? res.toJSON() : null;
-  },
-  findById: async (id) => {
-    const model = getModel('ActivationKey');
-    if (dbType() === 'mongodb') return await model.findById(id);
-    const res = await model.findByPk(id);
-    return res ? res.toJSON() : null;
-  },
-  findAll: async (query = {}) => {
-    const model = getModel('ActivationKey');
-    if (dbType() === 'mongodb') return await model.find(query);
-    const res = await model.findAll({ where: query });
-    return res.map(r => r.toJSON());
-  },
-  update: async (id, data) => {
-    const model = getModel('ActivationKey');
-    if (dbType() === 'mongodb') return await model.findByIdAndUpdate(id, data, { new: true });
-    await model.update(data, { where: { id } });
-    const updated = await model.findByPk(id);
-    return updated ? updated.toJSON() : null;
-  },
-  delete: async (id) => {
-    const model = getModel('ActivationKey');
-    if (dbType() === 'mongodb') return await model.findByIdAndDelete(id);
-    return await model.destroy({ where: { id } });
-  }
-};
+const User = createModelWrapper('User');
+const Subject = createModelWrapper('Subject');
+const Material = createModelWrapper('Material');
+const Activity = createModelWrapper('Activity');
+const Submission = createModelWrapper('Submission');
+const Lesson = createModelWrapper('Lesson');
+const Feedback = createModelWrapper('Feedback');
+const ChatbotResponse = createModelWrapper('ChatbotResponse');
+const Combination = createModelWrapper('Combination');
+const Tenant = createModelWrapper('Tenant');
+const ActivationKey = createModelWrapper('ActivationKey');
 
 module.exports = {
   syncDB,
