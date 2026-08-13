@@ -832,9 +832,11 @@ router.get('/materials', async (req, res) => {
     const users = await User.findAll(usersQuery);
 
     const materialsWithCreator = materials.map(m => {
-      const creator = users.find(u => u.id == m.teacherId);
+      const creator = users.find(u => String(u.id || u._id) === String(m.teacherId));
+      const matId = m.id || m._id ? (m.id || m._id).toString() : undefined;
       return {
         ...m,
+        id: matId,
         creatorName: creator ? creator.name : 'System/Admin',
         creatorRole: creator ? creator.role : 'admin'
       };

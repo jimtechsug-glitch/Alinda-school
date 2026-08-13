@@ -319,23 +319,30 @@ function getModel(name) {
 function toPlain(doc) {
   if (!doc) return null;
   if (Array.isArray(doc)) return doc.map(toPlain);
+  let res = doc;
   if (typeof doc.toJSON === 'function') {
-    const json = doc.toJSON();
-    if (json._id && !json.id) json.id = json._id.toString();
-    if (!json.id && doc._id) json.id = doc._id.toString();
-    return json;
+    res = doc.toJSON();
+  } else if (doc._doc) {
+    res = { ...doc._doc };
+  } else if (typeof doc === 'object') {
+    res = { ...doc };
   }
-  if (doc._id && !doc.id) {
-    return { ...doc, id: doc._id.toString() };
+  const idVal = res.id || res._id || (doc._id ? doc._id.toString() : undefined);
+  if (idVal) {
+    res.id = idVal.toString();
   }
-  return doc;
+  if (res._id) delete res._id;
+  if (res.__v !== undefined) delete res.__v;
+  return res;
 }
 
 function normalizeMongoQuery(query = {}) {
   if (!query || typeof query !== 'object') return query;
   const clean = { ...query };
   if (clean.id !== undefined) {
-    clean._id = clean.id;
+    if (mongoose.Types.ObjectId.isValid(clean.id)) {
+      clean._id = clean.id;
+    }
     delete clean.id;
   }
   return clean;
@@ -346,23 +353,27 @@ function createModelWrapper(name) {
     findOne: async (query = {}) => {
       const model = getModel(name);
       if (dbType() === 'mongodb') {
-        const doc = await model.findOne(normalizeMongoQuery(query));
-        return toPlain(doc);
+        try {
+          const doc = await model.findOne(normalizeMongoQuery(query));
+          return toPlain(doc);
+        } catch {
+          return null;
+        }
       } else {
         const res = await model.findOne({ where: query });
         return res ? res.toJSON() : null;
       }
     },
     findById: async (id) => {
+      if (!id || id === 'undefined' || id === 'null') return null;
       const model = getModel(name);
       if (dbType() === 'mongodb') {
-        if (!id) return null;
         try {
+          if (!mongoose.Types.ObjectId.isValid(id)) return null;
           const doc = await model.findById(id);
           return toPlain(doc);
-        } catch (err) {
-          const doc = await model.findOne({ _id: id }).catch(() => null);
-          return toPlain(doc);
+        } catch {
+          return null;
         }
       } else {
         const res = await model.findByPk(id);
@@ -382,19 +393,28 @@ function createModelWrapper(name) {
     findAll: async (query = {}) => {
       const model = getModel(name);
       if (dbType() === 'mongodb') {
-        const docs = await model.find(normalizeMongoQuery(query));
-        return docs.map(toPlain);
+        try {
+          const docs = await model.find(normalizeMongoQuery(query));
+          return docs.map(toPlain);
+        } catch {
+          return [];
+        }
       } else {
         const res = await model.findAll({ where: query });
         return res.map(r => r.toJSON());
       }
     },
     update: async (id, data) => {
+      if (!id || id === 'undefined' || id === 'null') return null;
       const model = getModel(name);
       if (dbType() === 'mongodb') {
-        if (!id) return null;
-        const doc = await model.findByIdAndUpdate(id, data, { new: true });
-        return toPlain(doc);
+        try {
+          if (!mongoose.Types.ObjectId.isValid(id)) return null;
+          const doc = await model.findByIdAndUpdate(id, data, { new: true });
+          return toPlain(doc);
+        } catch {
+          return null;
+        }
       } else {
         await model.update(data, { where: { id } });
         const updated = await model.findByPk(id);
@@ -402,10 +422,15 @@ function createModelWrapper(name) {
       }
     },
     delete: async (id) => {
+      if (!id || id === 'undefined' || id === 'null') return null;
       const model = getModel(name);
       if (dbType() === 'mongodb') {
-        if (!id) return null;
-        return await model.findByIdAndDelete(id);
+        try {
+          if (!mongoose.Types.ObjectId.isValid(id)) return null;
+          return await model.findByIdAndDelete(id);
+        } catch {
+          return null;
+        }
       } else {
         return await model.destroy({ where: { id } });
       }
