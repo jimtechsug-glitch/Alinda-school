@@ -1,8 +1,11 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
-import { X, Maximize2, Minimize2, Download, ExternalLink, ZoomIn, ZoomOut, RotateCcw, ChevronLeft, ChevronRight, Loader2, FileText, AlertCircle } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import {
+  X, Maximize2, Minimize2, Download, ExternalLink,
+  ZoomIn, ZoomOut, RotateCcw, ChevronLeft, ChevronRight,
+  Loader2, Layers, BookOpen, AlertCircle
+} from 'lucide-react';
 import { base64ToBlob, base64ToUint8Array, downloadFileData, openFileDataInNewTab } from '../utils/fileUtils';
 
-// CDN URLs for PDF.js
 const PDFJS_SCRIPT = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
 const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -34,22 +37,161 @@ function loadPdfJsScript() {
 }
 
 /**
+ * Individual Page Item with correct aspect ratio and crisp canvas rendering
+ */
+function PdfPageItem({ pdfDoc, pageNum, zoomScale, containerWidth }) {
+  const canvasRef = useRef(null);
+  const renderTaskRef = useRef(null);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [rendered, setRendered] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function renderPageCanvas() {
+      if (!pdfDoc || !canvasRef.current) return;
+
+      try {
+        if (renderTaskRef.current) {
+          try { renderTaskRef.current.cancel(); } catch { }
+        }
+
+        const page = await pdfDoc.getPage(pageNum);
+        if (!isMounted) return;
+
+        const dpr = Math.min(window.devicePixelRatio || 1, 2.5); // Cap DPR for memory safety on low-end mobile
+        const unscaledViewport = page.getViewport({ scale: 1.0 });
+
+        // Calculate available display width
+        const availableWidth = containerWidth ? Math.max(containerWidth - 32, 280) : (window.innerWidth - 32);
+        const fitScale = Math.min(availableWidth / unscaledViewport.width, 1.8);
+        const effectiveScale = fitScale * zoomScale;
+
+        // Viewport for high-resolution canvas bitmap
+        const renderViewport = page.getViewport({ scale: effectiveScale * dpr });
+        const displayWidth = Math.floor(renderViewport.width / dpr);
+        const displayHeight = Math.floor(renderViewport.height / dpr);
+
+        if (isMounted) {
+          setDimensions({ width: displayWidth, height: displayHeight });
+        }
+
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        canvas.width = Math.floor(renderViewport.width);
+        canvas.height = Math.floor(renderViewport.height);
+        canvas.style.width = `${displayWidth}px`;
+        canvas.style.height = `${displayHeight}px`;
+
+        const ctx = canvas.getContext('2d', { alpha: false });
+        if (!ctx) return;
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
+        const renderContext = {
+          canvasContext: ctx,
+          viewport: renderViewport,
+        };
+
+        const renderTask = page.render(renderContext);
+        renderTaskRef.current = renderTask;
+
+        await renderTask.promise;
+        if (isMounted) {
+          setRendered(true);
+        }
+      } catch (err) {
+        if (err.name !== 'RenderingCancelledException') {
+          console.warn(`Render error on page ${pageNum}:`, err);
+        }
+      }
+    }
+
+    renderPageCanvas();
+
+    return () => {
+      isMounted = false;
+      if (renderTaskRef.current) {
+        try { renderTaskRef.current.cancel(); } catch { }
+      }
+    };
+  }, [pdfDoc, pageNum, zoomScale, containerWidth]);
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        background: '#ffffff',
+        borderRadius: '6px',
+        boxShadow: '0 6px 20px rgba(0,0,0,0.5)',
+        margin: '12px auto',
+        maxWidth: '100%',
+        position: 'relative',
+        minHeight: dimensions.height ? `${dimensions.height}px` : '380px',
+        width: dimensions.width ? `${dimensions.width}px` : '100%',
+        transition: 'all 0.15s ease',
+        overflow: 'hidden'
+      }}
+    >
+      <canvas
+        ref={canvasRef}
+        style={{
+          display: 'block',
+          width: dimensions.width ? `${dimensions.width}px` : '100%',
+          height: dimensions.height ? `${dimensions.height}px` : 'auto',
+          maxWidth: '100%'
+        }}
+      />
+      <div style={{
+        position: 'absolute',
+        bottom: '8px',
+        right: '8px',
+        background: 'rgba(15, 23, 42, 0.75)',
+        color: '#ffffff',
+        fontSize: '0.7rem',
+        fontWeight: 600,
+        padding: '2px 8px',
+        borderRadius: '4px',
+        pointerEvents: 'none'
+      }}>
+        Page {pageNum}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Mobile-friendly Canvas PDF Viewer
  */
-function MobileFriendlyPdfViewer({ fileData, objectUrl, fileName, isFullScreen }) {
+function MobileFriendlyPdfViewer({ fileData, objectUrl, fileName }) {
   const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [scale, setScale] = useState(1.0);
+  const [zoomScale, setZoomScale] = useState(1.0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [pdfDoc, setPdfDoc] = useState(null);
-  const [viewMode, setViewMode] = useState('scroll'); // 'scroll' (all pages) or 'single' (page-by-page)
-  
-  const canvasRefs = useRef({});
-  const renderTasks = useRef({});
+  const [viewMode, setViewMode] = useState('scroll'); // 'scroll' or 'single'
+  const [containerWidth, setContainerWidth] = useState(0);
+
   const containerRef = useRef(null);
 
-  // Load the PDF document
+  // Measure container width on resize
+  useEffect(() => {
+    const updateWidth = () => {
+      if (containerRef.current) {
+        setContainerWidth(containerRef.current.clientWidth);
+      }
+    };
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, []);
+
+  // Load PDF Document
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
@@ -60,7 +202,6 @@ function MobileFriendlyPdfViewer({ fileData, objectUrl, fileName, isFullScreen }
         const pdfjs = await loadPdfJsScript();
         let pdfSource = null;
 
-        // Prefer Uint8Array for reliability with base64 data
         if (fileData && fileData.startsWith('data:')) {
           const rawData = base64ToUint8Array(fileData);
           if (rawData) {
@@ -88,7 +229,7 @@ function MobileFriendlyPdfViewer({ fileData, objectUrl, fileName, isFullScreen }
           setLoading(false);
         }
       } catch (err) {
-        console.error('PDF.js render error:', err);
+        console.error('PDF.js error:', err);
         if (isMounted) {
           setError(err.message || 'Unable to render PDF inside browser.');
           setLoading(false);
@@ -100,89 +241,31 @@ function MobileFriendlyPdfViewer({ fileData, objectUrl, fileName, isFullScreen }
 
     return () => {
       isMounted = false;
-      // Cancel ongoing render tasks
-      Object.values(renderTasks.current).forEach(task => {
-        try { task?.cancel(); } catch { }
-      });
-      renderTasks.current = {};
     };
   }, [fileData, objectUrl]);
 
-  // Render a specific page to a canvas
-  const renderPage = useCallback(async (pageNum) => {
-    if (!pdfDoc) return;
-    const canvas = canvasRefs.current[pageNum];
-    if (!canvas) return;
+  const handleZoomIn = () => setZoomScale(s => Math.min(s + 0.2, 2.5));
+  const handleZoomOut = () => setZoomScale(s => Math.max(s - 0.2, 0.7));
+  const handleResetZoom = () => setZoomScale(1.0);
 
-    try {
-      // Cancel existing render on this canvas if any
-      if (renderTasks.current[pageNum]) {
-        try { renderTasks.current[pageNum].cancel(); } catch { }
-      }
-
-      const page = await pdfDoc.getPage(pageNum);
-      
-      // Auto adjust base scale based on container width for responsive mobile viewing
-      const containerWidth = containerRef.current ? containerRef.current.clientWidth - 32 : 600;
-      const unscaledViewport = page.getViewport({ scale: 1.0 });
-      const fitScale = Math.min(Math.max(containerWidth / unscaledViewport.width, 0.6), 2.5);
-      
-      const effectiveScale = fitScale * scale;
-      const viewport = page.getViewport({ scale: effectiveScale });
-
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.floor(viewport.width * dpr);
-      canvas.height = Math.floor(viewport.height * dpr);
-      canvas.style.width = `${Math.floor(viewport.width)}px`;
-      canvas.style.height = `${Math.floor(viewport.height)}px`;
-
-      const ctx = canvas.getContext('2d');
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-
-      const renderContext = {
-        canvasContext: ctx,
-        viewport,
-        transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null,
-      };
-
-      const renderTask = page.render(renderContext);
-      renderTasks.current[pageNum] = renderTask;
-      await renderTask.promise;
-      delete renderTasks.current[pageNum];
-    } catch (err) {
-      if (err.name !== 'RenderingCancelledException') {
-        console.warn(`Render error on page ${pageNum}:`, err);
-      }
-    }
-  }, [pdfDoc, scale]);
-
-  // Trigger render when doc, page, scale or viewMode changes
-  useEffect(() => {
-    if (!pdfDoc) return;
-
-    if (viewMode === 'scroll') {
-      for (let i = 1; i <= numPages; i++) {
-        renderPage(i);
-      }
-    } else {
-      renderPage(currentPage);
-    }
-  }, [pdfDoc, numPages, currentPage, scale, viewMode, renderPage]);
-
-  const handleZoomIn = () => setScale(s => Math.min(s + 0.25, 3.0));
-  const handleZoomOut = () => setScale(s => Math.max(s - 0.25, 0.6));
-  const handleResetZoom = () => setScale(1.0);
+  const handlePrevPage = () => setCurrentPage(p => Math.max(p - 1, 1));
+  const handleNextPage = () => setCurrentPage(p => Math.min(p + 1, numPages));
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', background: '#0f172a' }}>
-      {/* PDF Controls Toolbar */}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', background: '#0b0f19' }}>
+      {/* PDF Action & Navigation Bar */}
       <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px',
-        padding: '8px 16px', background: 'rgba(15, 23, 42, 0.95)', borderBottom: '1px solid rgba(255,255,255,0.1)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '8px',
+        padding: '8px 12px',
+        background: 'rgba(15, 23, 42, 0.95)',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
         zIndex: 10
       }}>
-        {/* Mobile Quick Action Buttons */}
+        {/* Left: Quick Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <button
             type="button"
@@ -191,79 +274,145 @@ function MobileFriendlyPdfViewer({ fileData, objectUrl, fileName, isFullScreen }
             style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', padding: '5px 10px', background: 'var(--accent-emerald)', borderColor: 'var(--accent-emerald)' }}
             title="Download PDF to Device"
           >
-            <Download size={14} /> 📥 Download
+            <Download size={14} /> <span>Download PDF</span>
           </button>
-          
+
           <button
             type="button"
             onClick={() => openFileDataInNewTab(fileData || objectUrl, 'pdf')}
             className="btn btn-secondary btn-sm"
             style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', padding: '5px 10px' }}
-            title="Open in PDF Viewer / New Tab"
+            title="Open in new browser tab / external viewer"
           >
-            <ExternalLink size={14} /> ↗️ Open Tab
+            <ExternalLink size={14} /> <span>Open Tab</span>
           </button>
         </div>
 
-        {/* Zoom and Page controls */}
+        {/* Center: Mode & Page Navigation */}
         {numPages > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* View Mode Toggle */}
+            <div style={{ display: 'flex', background: 'rgba(255,255,255,0.06)', borderRadius: '6px', padding: '2px' }}>
+              <button
+                type="button"
+                onClick={() => setViewMode('scroll')}
+                style={{
+                  background: viewMode === 'scroll' ? 'var(--primary)' : 'transparent',
+                  color: '#fff', border: 'none', borderRadius: '4px',
+                  padding: '4px 8px', fontSize: '0.75rem', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '4px'
+                }}
+                title="Continuous Scroll Mode"
+              >
+                <Layers size={13} /> <span className="hide-on-mobile">All Pages</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('single')}
+                style={{
+                  background: viewMode === 'single' ? 'var(--primary)' : 'transparent',
+                  color: '#fff', border: 'none', borderRadius: '4px',
+                  padding: '4px 8px', fontSize: '0.75rem', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '4px'
+                }}
+                title="Single Page Mode"
+              >
+                <BookOpen size={13} /> <span className="hide-on-mobile">Single Page</span>
+              </button>
+            </div>
+
+            {/* Single Page Navigator */}
+            {viewMode === 'single' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <button
+                  type="button"
+                  onClick={handlePrevPage}
+                  disabled={currentPage <= 1}
+                  style={{
+                    background: 'rgba(255,255,255,0.08)', border: 'none', color: '#fff',
+                    borderRadius: '4px', padding: '4px 6px', cursor: 'pointer',
+                    opacity: currentPage <= 1 ? 0.3 : 1
+                  }}
+                >
+                  <ChevronLeft size={15} />
+                </button>
+                <span style={{ fontSize: '0.75rem', color: '#cbd5e1', padding: '0 4px', fontWeight: 600 }}>
+                  {currentPage} / {numPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleNextPage}
+                  disabled={currentPage >= numPages}
+                  style={{
+                    background: 'rgba(255,255,255,0.08)', border: 'none', color: '#fff',
+                    borderRadius: '4px', padding: '4px 6px', cursor: 'pointer',
+                    opacity: currentPage >= numPages ? 0.3 : 1
+                  }}
+                >
+                  <ChevronRight size={15} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Right: Zoom Controls */}
+        {numPages > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.06)', borderRadius: '6px', padding: '2px 4px' }}>
               <button
                 type="button"
                 onClick={handleZoomOut}
-                disabled={scale <= 0.6}
+                disabled={zoomScale <= 0.7}
+                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: '3px 5px', opacity: zoomScale <= 0.7 ? 0.3 : 1 }}
                 title="Zoom Out"
-                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: '4px 6px', opacity: scale <= 0.6 ? 0.4 : 1 }}
               >
-                <ZoomOut size={15} />
+                <ZoomOut size={14} />
               </button>
-              <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.8)', minWidth: '42px', textAlign: 'center' }}>
-                {Math.round(scale * 100)}%
+              <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.85)', minWidth: '38px', textAlign: 'center', fontWeight: 600 }}>
+                {Math.round(zoomScale * 100)}%
               </span>
               <button
                 type="button"
                 onClick={handleZoomIn}
-                disabled={scale >= 3.0}
+                disabled={zoomScale >= 2.5}
+                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: '3px 5px', opacity: zoomScale >= 2.5 ? 0.3 : 1 }}
                 title="Zoom In"
-                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: '4px 6px', opacity: scale >= 3.0 ? 0.4 : 1 }}
               >
-                <ZoomIn size={15} />
+                <ZoomIn size={14} />
               </button>
-              {scale !== 1.0 && (
+              {zoomScale !== 1.0 && (
                 <button
                   type="button"
                   onClick={handleResetZoom}
                   title="Reset Zoom"
-                  style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
+                  style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '3px' }}
                 >
-                  <RotateCcw size={13} />
+                  <RotateCcw size={12} />
                 </button>
               )}
             </div>
 
-            {/* Page navigation */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', color: '#94a3b8' }}>
-              <span style={{ background: 'rgba(255,255,255,0.06)', padding: '4px 8px', borderRadius: '4px' }}>
-                {numPages} {numPages === 1 ? 'page' : 'pages'}
+            {viewMode === 'scroll' && (
+              <span style={{ fontSize: '0.72rem', color: '#94a3b8', background: 'rgba(255,255,255,0.06)', padding: '4px 6px', borderRadius: '4px' }}>
+                {numPages} pages
               </span>
-            </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Main Canvas Scroll Area */}
+      {/* Main Scrollable Canvas Area */}
       <div
         ref={containerRef}
         style={{
           flex: 1,
           overflowY: 'auto',
           overflowX: 'auto',
-          padding: '16px',
+          padding: '16px 12px',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: '16px',
           background: '#090d16',
           minHeight: '280px'
         }}
@@ -272,11 +421,11 @@ function MobileFriendlyPdfViewer({ fileData, objectUrl, fileName, isFullScreen }
         {loading && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', color: '#94a3b8', gap: '12px' }}>
             <Loader2 size={32} className="spinning" style={{ color: 'var(--primary)' }} />
-            <div style={{ fontSize: '0.9rem', fontWeight: 500 }}>Rendering PDF for Mobile & Desktop...</div>
+            <div style={{ fontSize: '0.9rem', fontWeight: 500 }}>Loading document pages...</div>
           </div>
         )}
 
-        {/* Fallback / Error display */}
+        {/* Error / Mobile fallback notice */}
         {error && (
           <div style={{
             maxWidth: '480px', width: '100%', margin: '40px auto', padding: '24px',
@@ -284,9 +433,9 @@ function MobileFriendlyPdfViewer({ fileData, objectUrl, fileName, isFullScreen }
             borderRadius: '12px', textAlign: 'center', color: '#fff'
           }}>
             <AlertCircle size={36} style={{ color: '#ef4444', margin: '0 auto 12px' }} />
-            <h4 style={{ margin: '0 0 8px', fontSize: '1rem', fontWeight: 600 }}>PDF Mobile Preview Notice</h4>
+            <h4 style={{ margin: '0 0 8px', fontSize: '1rem', fontWeight: 600 }}>PDF Mobile Notice</h4>
             <p style={{ fontSize: '0.85rem', color: '#cbd5e1', lineHeight: '1.5', margin: '0 0 16px' }}>
-              Mobile browsers restrict inline previews for certain PDF formats. You can download or open the document directly:
+              Your device can download or open the PDF directly in your native reader:
             </p>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
               <button
@@ -309,36 +458,28 @@ function MobileFriendlyPdfViewer({ fileData, objectUrl, fileName, isFullScreen }
           </div>
         )}
 
-        {/* Multi-page continuous view */}
-        {!loading && !error && numPages > 0 && (
-          Array.from({ length: numPages }, (_, idx) => idx + 1).map((pageNum) => (
-            <div
-              key={pageNum}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
-                borderRadius: '4px',
-                overflow: 'hidden',
-                background: '#fff',
-                position: 'relative'
-              }}
-            >
-              <canvas
-                ref={el => { if (el) canvasRefs.current[pageNum] = el; }}
-                style={{ display: 'block', maxWidth: '100%' }}
-              />
-              <div style={{
-                position: 'absolute', bottom: '6px', right: '8px',
-                background: 'rgba(0,0,0,0.65)', color: '#fff',
-                fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px',
-                pointerEvents: 'none'
-              }}>
-                Page {pageNum} / {numPages}
-              </div>
-            </div>
+        {/* Scroll Mode: All Pages */}
+        {!loading && !error && pdfDoc && viewMode === 'scroll' && (
+          Array.from({ length: numPages }, (_, idx) => idx + 1).map((pNum) => (
+            <PdfPageItem
+              key={pNum}
+              pdfDoc={pdfDoc}
+              pageNum={pNum}
+              zoomScale={zoomScale}
+              containerWidth={containerWidth}
+            />
           ))
+        )}
+
+        {/* Single Page Mode */}
+        {!loading && !error && pdfDoc && viewMode === 'single' && (
+          <PdfPageItem
+            key={currentPage}
+            pdfDoc={pdfDoc}
+            pageNum={currentPage}
+            zoomScale={zoomScale}
+            containerWidth={containerWidth}
+          />
         )}
       </div>
     </div>
@@ -346,8 +487,7 @@ function MobileFriendlyPdfViewer({ fileData, objectUrl, fileName, isFullScreen }
 }
 
 /**
- * FileViewer – renders file data inline inside a modal.
- * Supports HTML5 Canvas rendering for PDFs on mobile/desktop, images, videos, Word/PPT.
+ * FileViewer Modal – renders file data inline inside a modal.
  */
 export default function FileViewer({ file, onClose }) {
   const [objectUrl, setObjectUrl] = useState('');
@@ -386,7 +526,7 @@ export default function FileViewer({ file, onClose }) {
         setObjectUrl(fileData);
       }
     } catch (e) {
-      console.error('Failed to create Blob URL from base64:', e);
+      console.error('Failed to create Blob URL:', e);
       setObjectUrl(fileData);
     }
   }, [fileData, isPdf]);
@@ -447,7 +587,7 @@ export default function FileViewer({ file, onClose }) {
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '10px 16px', borderBottom: '1px solid var(--border)',
-          background: 'rgba(0,0,0,0.25)',
+          background: 'rgba(0,0,0,0.3)',
           flexShrink: 0, gap: '8px'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
@@ -464,23 +604,25 @@ export default function FileViewer({ file, onClose }) {
             </div>
           </div>
 
-          {/* Action buttons */}
+          {/* Header Action buttons */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-            <button
-              type="button"
-              onClick={() => downloadFileData(fileData || objectUrl, fileName, ext)}
-              title="Download File"
-              className="btn btn-secondary btn-sm"
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: '4px',
-                padding: '5px 10px', fontSize: '0.78rem', fontWeight: 600,
-                background: 'rgba(255,255,255,0.08)',
-                color: '#fff', border: '1px solid var(--border)',
-                borderRadius: '6px', cursor: 'pointer'
-              }}
-            >
-              <Download size={14} /> <span className="hide-on-mobile">Download</span>
-            </button>
+            {!isPdf && (
+              <button
+                type="button"
+                onClick={() => downloadFileData(fileData || objectUrl, fileName, ext)}
+                title="Download File"
+                className="btn btn-secondary btn-sm"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '4px',
+                  padding: '5px 10px', fontSize: '0.78rem', fontWeight: 600,
+                  background: 'rgba(255,255,255,0.08)',
+                  color: '#fff', border: '1px solid var(--border)',
+                  borderRadius: '6px', cursor: 'pointer'
+                }}
+              >
+                <Download size={14} /> <span>Download</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -516,13 +658,12 @@ export default function FileViewer({ file, onClose }) {
         {/* Content area */}
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: isPdf ? '#090d16' : 'transparent' }}>
 
-          {/* ── PDF: Universal Canvas Viewer ── */}
+          {/* ── PDF: Mobile & Desktop Canvas Viewer ── */}
           {isPdf && (
             <MobileFriendlyPdfViewer
               fileData={fileData}
               objectUrl={objectUrl}
               fileName={fileName}
-              isFullScreen={isFullScreen}
             />
           )}
 
