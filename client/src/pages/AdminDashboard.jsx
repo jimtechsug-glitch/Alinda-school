@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import FileViewer from '../components/FileViewer';
-import { downloadFileData } from '../utils/fileUtils';
 import { useAuth, API } from '../App';
 
 const NAV = [
@@ -1287,24 +1286,14 @@ export default function AdminDashboard() {
                     <td>{m.combination ? <span className="badge badge-warning">{m.combination}</span> : '—'}</td>
                     <td style={{ fontSize: '0.8rem' }}>
                       {m.fileData ? (
-                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
-                            style={{ padding: '2px 6px', fontSize: '0.72rem' }}
-                            onClick={() => setViewFile({ fileData: m.fileData, fileType: m.fileType, fileName: m.fileName, title: m.title })}
-                          >
-                            👁 View
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
-                            style={{ padding: '2px 6px', fontSize: '0.72rem', color: 'var(--accent-emerald)' }}
-                            onClick={() => downloadFileData(m.fileData, m.fileName, m.fileType)}
-                          >
-                            ⬇ Save
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '3px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          onClick={() => setViewFile({ fileData: m.fileData, fileType: m.fileType, fileName: m.fileName, title: m.title })}
+                        >
+                          👁 View
+                        </button>
                       ) : m.contentUrl ? (
                         <a href={m.contentUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)' }}>Open Link</a>
                       ) : '—'}
@@ -1440,24 +1429,14 @@ export default function AdminDashboard() {
                     <td>{a.combination ? <span className="badge badge-warning">{a.combination}</span> : '—'}</td>
                     <td style={{ fontSize: '0.8rem' }}>
                       {a.fileData ? (
-                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
-                            style={{ padding: '2px 6px', fontSize: '0.72rem' }}
-                            onClick={() => setViewFile({ fileData: a.fileData, fileType: a.fileType, fileName: a.fileName, title: a.title })}
-                          >
-                            👁 View
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
-                            style={{ padding: '2px 6px', fontSize: '0.72rem', color: 'var(--accent-emerald)' }}
-                            onClick={() => downloadFileData(a.fileData, a.fileName, a.fileType)}
-                          >
-                            ⬇ Save
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '3px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          onClick={() => setViewFile({ fileData: a.fileData, fileType: a.fileType, fileName: a.fileName, title: a.title })}
+                        >
+                          👁 View
+                        </button>
                       ) : '—'}
                     </td>
                     <td>{a.maxScore}</td>

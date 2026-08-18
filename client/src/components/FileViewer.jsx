@@ -1,10 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
 import {
-  X, Maximize2, Minimize2, Download, ExternalLink,
+  X, Maximize2, Minimize2,
   ZoomIn, ZoomOut, RotateCcw, ChevronLeft, ChevronRight,
-  Loader2, Layers, BookOpen, AlertCircle
+  Loader2, Layers, BookOpen, AlertCircle, Shield
 } from 'lucide-react';
-import { base64ToBlob, base64ToUint8Array, downloadFileData, openFileDataInNewTab } from '../utils/fileUtils';
+import { base64ToBlob, base64ToUint8Array } from '../utils/fileUtils';
 
 const PDFJS_SCRIPT = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
 const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -59,7 +59,7 @@ function PdfPageItem({ pdfDoc, pageNum, zoomScale, containerWidth }) {
         const page = await pdfDoc.getPage(pageNum);
         if (!isMounted) return;
 
-        const dpr = Math.min(window.devicePixelRatio || 1, 2.5); // Cap DPR for memory safety on low-end mobile
+        const dpr = Math.min(window.devicePixelRatio || 1, 2.5); // Cap DPR for memory safety on mobile
         const unscaledViewport = page.getViewport({ scale: 1.0 });
 
         // Calculate available display width
@@ -134,16 +134,19 @@ function PdfPageItem({ pdfDoc, pageNum, zoomScale, containerWidth }) {
         minHeight: dimensions.height ? `${dimensions.height}px` : '380px',
         width: dimensions.width ? `${dimensions.width}px` : '100%',
         transition: 'all 0.15s ease',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        userSelect: 'none'
       }}
     >
       <canvas
         ref={canvasRef}
+        onContextMenu={e => e.preventDefault()}
         style={{
           display: 'block',
           width: dimensions.width ? `${dimensions.width}px` : '100%',
           height: dimensions.height ? `${dimensions.height}px` : 'auto',
-          maxWidth: '100%'
+          maxWidth: '100%',
+          pointerEvents: 'none'
         }}
       />
       <div style={{
@@ -165,7 +168,7 @@ function PdfPageItem({ pdfDoc, pageNum, zoomScale, containerWidth }) {
 }
 
 /**
- * Mobile-friendly Canvas PDF Viewer
+ * Mobile-friendly In-App PDF Viewer (No Download Option)
  */
 function MobileFriendlyPdfViewer({ fileData, objectUrl, fileName }) {
   const [numPages, setNumPages] = useState(0);
@@ -252,8 +255,11 @@ function MobileFriendlyPdfViewer({ fileData, objectUrl, fileName }) {
   const handleNextPage = () => setCurrentPage(p => Math.min(p + 1, numPages));
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', background: '#0b0f19' }}>
-      {/* PDF Action & Navigation Bar */}
+    <div
+      onContextMenu={e => e.preventDefault()}
+      style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', background: '#0b0f19', userSelect: 'none' }}
+    >
+      {/* PDF Controls Bar */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -265,106 +271,80 @@ function MobileFriendlyPdfViewer({ fileData, objectUrl, fileName }) {
         borderBottom: '1px solid rgba(255,255,255,0.08)',
         zIndex: 10
       }}>
-        {/* Left: Quick Actions */}
+        {/* Left: View Mode Toggle */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <button
-            type="button"
-            onClick={() => downloadFileData(fileData || objectUrl, fileName, 'pdf')}
-            className="btn btn-primary btn-sm"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', padding: '5px 10px', background: 'var(--accent-emerald)', borderColor: 'var(--accent-emerald)' }}
-            title="Download PDF to Device"
-          >
-            <Download size={14} /> <span>Download PDF</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => openFileDataInNewTab(fileData || objectUrl, 'pdf')}
-            className="btn btn-secondary btn-sm"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', padding: '5px 10px' }}
-            title="Open in new browser tab / external viewer"
-          >
-            <ExternalLink size={14} /> <span>Open Tab</span>
-          </button>
+          <div style={{ display: 'flex', background: 'rgba(255,255,255,0.06)', borderRadius: '6px', padding: '2px' }}>
+            <button
+              type="button"
+              onClick={() => setViewMode('scroll')}
+              style={{
+                background: viewMode === 'scroll' ? 'var(--primary)' : 'transparent',
+                color: '#fff', border: 'none', borderRadius: '4px',
+                padding: '5px 9px', fontSize: '0.75rem', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 600
+              }}
+              title="Continuous Scroll Mode"
+            >
+              <Layers size={14} /> <span>All Pages</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('single')}
+              style={{
+                background: viewMode === 'single' ? 'var(--primary)' : 'transparent',
+                color: '#fff', border: 'none', borderRadius: '4px',
+                padding: '5px 9px', fontSize: '0.75rem', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 600
+              }}
+              title="Single Page Mode"
+            >
+              <BookOpen size={14} /> <span>Single Page</span>
+            </button>
+          </div>
         </div>
 
-        {/* Center: Mode & Page Navigation */}
-        {numPages > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {/* View Mode Toggle */}
-            <div style={{ display: 'flex', background: 'rgba(255,255,255,0.06)', borderRadius: '6px', padding: '2px' }}>
-              <button
-                type="button"
-                onClick={() => setViewMode('scroll')}
-                style={{
-                  background: viewMode === 'scroll' ? 'var(--primary)' : 'transparent',
-                  color: '#fff', border: 'none', borderRadius: '4px',
-                  padding: '4px 8px', fontSize: '0.75rem', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: '4px'
-                }}
-                title="Continuous Scroll Mode"
-              >
-                <Layers size={13} /> <span className="hide-on-mobile">All Pages</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('single')}
-                style={{
-                  background: viewMode === 'single' ? 'var(--primary)' : 'transparent',
-                  color: '#fff', border: 'none', borderRadius: '4px',
-                  padding: '4px 8px', fontSize: '0.75rem', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: '4px'
-                }}
-                title="Single Page Mode"
-              >
-                <BookOpen size={13} /> <span className="hide-on-mobile">Single Page</span>
-              </button>
-            </div>
-
-            {/* Single Page Navigator */}
-            {viewMode === 'single' && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <button
-                  type="button"
-                  onClick={handlePrevPage}
-                  disabled={currentPage <= 1}
-                  style={{
-                    background: 'rgba(255,255,255,0.08)', border: 'none', color: '#fff',
-                    borderRadius: '4px', padding: '4px 6px', cursor: 'pointer',
-                    opacity: currentPage <= 1 ? 0.3 : 1
-                  }}
-                >
-                  <ChevronLeft size={15} />
-                </button>
-                <span style={{ fontSize: '0.75rem', color: '#cbd5e1', padding: '0 4px', fontWeight: 600 }}>
-                  {currentPage} / {numPages}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleNextPage}
-                  disabled={currentPage >= numPages}
-                  style={{
-                    background: 'rgba(255,255,255,0.08)', border: 'none', color: '#fff',
-                    borderRadius: '4px', padding: '4px 6px', cursor: 'pointer',
-                    opacity: currentPage >= numPages ? 0.3 : 1
-                  }}
-                >
-                  <ChevronRight size={15} />
-                </button>
-              </div>
-            )}
+        {/* Center: Single Page Navigator */}
+        {numPages > 0 && viewMode === 'single' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: '6px' }}>
+            <button
+              type="button"
+              onClick={handlePrevPage}
+              disabled={currentPage <= 1}
+              style={{
+                background: 'rgba(255,255,255,0.08)', border: 'none', color: '#fff',
+                borderRadius: '4px', padding: '4px 8px', cursor: 'pointer',
+                opacity: currentPage <= 1 ? 0.3 : 1
+              }}
+            >
+              <ChevronLeft size={15} />
+            </button>
+            <span style={{ fontSize: '0.75rem', color: '#cbd5e1', padding: '0 6px', fontWeight: 600 }}>
+              Page {currentPage} of {numPages}
+            </span>
+            <button
+              type="button"
+              onClick={handleNextPage}
+              disabled={currentPage >= numPages}
+              style={{
+                background: 'rgba(255,255,255,0.08)', border: 'none', color: '#fff',
+                borderRadius: '4px', padding: '4px 8px', cursor: 'pointer',
+                opacity: currentPage >= numPages ? 0.3 : 1
+              }}
+            >
+              <ChevronRight size={15} />
+            </button>
           </div>
         )}
 
         {/* Right: Zoom Controls */}
         {numPages > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.06)', borderRadius: '6px', padding: '2px 4px' }}>
               <button
                 type="button"
                 onClick={handleZoomOut}
                 disabled={zoomScale <= 0.7}
-                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: '3px 5px', opacity: zoomScale <= 0.7 ? 0.3 : 1 }}
+                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: '4px 6px', opacity: zoomScale <= 0.7 ? 0.3 : 1 }}
                 title="Zoom Out"
               >
                 <ZoomOut size={14} />
@@ -376,7 +356,7 @@ function MobileFriendlyPdfViewer({ fileData, objectUrl, fileName }) {
                 type="button"
                 onClick={handleZoomIn}
                 disabled={zoomScale >= 2.5}
-                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: '3px 5px', opacity: zoomScale >= 2.5 ? 0.3 : 1 }}
+                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: '4px 6px', opacity: zoomScale >= 2.5 ? 0.3 : 1 }}
                 title="Zoom In"
               >
                 <ZoomIn size={14} />
@@ -386,7 +366,7 @@ function MobileFriendlyPdfViewer({ fileData, objectUrl, fileName }) {
                   type="button"
                   onClick={handleResetZoom}
                   title="Reset Zoom"
-                  style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '3px' }}
+                  style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
                 >
                   <RotateCcw size={12} />
                 </button>
@@ -394,7 +374,7 @@ function MobileFriendlyPdfViewer({ fileData, objectUrl, fileName }) {
             </div>
 
             {viewMode === 'scroll' && (
-              <span style={{ fontSize: '0.72rem', color: '#94a3b8', background: 'rgba(255,255,255,0.06)', padding: '4px 6px', borderRadius: '4px' }}>
+              <span style={{ fontSize: '0.72rem', color: '#94a3b8', background: 'rgba(255,255,255,0.06)', padding: '5px 8px', borderRadius: '4px', fontWeight: 600 }}>
                 {numPages} pages
               </span>
             )}
@@ -421,11 +401,11 @@ function MobileFriendlyPdfViewer({ fileData, objectUrl, fileName }) {
         {loading && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', color: '#94a3b8', gap: '12px' }}>
             <Loader2 size={32} className="spinning" style={{ color: 'var(--primary)' }} />
-            <div style={{ fontSize: '0.9rem', fontWeight: 500 }}>Loading document pages...</div>
+            <div style={{ fontSize: '0.9rem', fontWeight: 500 }}>Loading document pages for secure viewing...</div>
           </div>
         )}
 
-        {/* Error / Mobile fallback notice */}
+        {/* Error notice */}
         {error && (
           <div style={{
             maxWidth: '480px', width: '100%', margin: '40px auto', padding: '24px',
@@ -433,28 +413,10 @@ function MobileFriendlyPdfViewer({ fileData, objectUrl, fileName }) {
             borderRadius: '12px', textAlign: 'center', color: '#fff'
           }}>
             <AlertCircle size={36} style={{ color: '#ef4444', margin: '0 auto 12px' }} />
-            <h4 style={{ margin: '0 0 8px', fontSize: '1rem', fontWeight: 600 }}>PDF Mobile Notice</h4>
-            <p style={{ fontSize: '0.85rem', color: '#cbd5e1', lineHeight: '1.5', margin: '0 0 16px' }}>
-              Your device can download or open the PDF directly in your native reader:
+            <h4 style={{ margin: '0 0 8px', fontSize: '1rem', fontWeight: 600 }}>Unable to Preview Document</h4>
+            <p style={{ fontSize: '0.85rem', color: '#cbd5e1', lineHeight: '1.5', margin: '0' }}>
+              The document could not be rendered in-app. Please contact your teacher or administrator for assistance.
             </p>
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={() => downloadFileData(fileData || objectUrl, fileName, 'pdf')}
-                className="btn btn-primary btn-sm"
-                style={{ padding: '8px 16px', fontSize: '0.85rem' }}
-              >
-                <Download size={15} style={{ marginRight: '6px' }} /> Download File
-              </button>
-              <button
-                type="button"
-                onClick={() => openFileDataInNewTab(fileData || objectUrl, 'pdf')}
-                className="btn btn-secondary btn-sm"
-                style={{ padding: '8px 16px', fontSize: '0.85rem' }}
-              >
-                <ExternalLink size={15} style={{ marginRight: '6px' }} /> Open in App
-              </button>
-            </div>
           </div>
         )}
 
@@ -487,7 +449,7 @@ function MobileFriendlyPdfViewer({ fileData, objectUrl, fileName }) {
 }
 
 /**
- * FileViewer Modal – renders file data inline inside a modal.
+ * FileViewer Modal – renders file data inline inside a modal without download options.
  */
 export default function FileViewer({ file, onClose }) {
   const [objectUrl, setObjectUrl] = useState('');
@@ -606,24 +568,6 @@ export default function FileViewer({ file, onClose }) {
 
           {/* Header Action buttons */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-            {!isPdf && (
-              <button
-                type="button"
-                onClick={() => downloadFileData(fileData || objectUrl, fileName, ext)}
-                title="Download File"
-                className="btn btn-secondary btn-sm"
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '4px',
-                  padding: '5px 10px', fontSize: '0.78rem', fontWeight: 600,
-                  background: 'rgba(255,255,255,0.08)',
-                  color: '#fff', border: '1px solid var(--border)',
-                  borderRadius: '6px', cursor: 'pointer'
-                }}
-              >
-                <Download size={14} /> <span>Download</span>
-              </button>
-            )}
-
             <button
               type="button"
               onClick={toggleFullScreen}
@@ -656,9 +600,12 @@ export default function FileViewer({ file, onClose }) {
         </div>
 
         {/* Content area */}
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: isPdf ? '#090d16' : 'transparent' }}>
+        <div
+          onContextMenu={e => e.preventDefault()}
+          style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: isPdf ? '#090d16' : 'transparent', userSelect: 'none' }}
+        >
 
-          {/* ── PDF: Mobile & Desktop Canvas Viewer ── */}
+          {/* ── PDF: Mobile & Desktop Canvas Viewer (View-Only) ── */}
           {isPdf && (
             <MobileFriendlyPdfViewer
               fileData={fileData}
@@ -676,9 +623,11 @@ export default function FileViewer({ file, onClose }) {
               <img
                 src={objectUrl}
                 alt={fileName}
+                onContextMenu={e => e.preventDefault()}
                 style={{
                   maxWidth: '100%', maxHeight: '100%',
-                  objectFit: 'contain', borderRadius: isFullScreen ? 0 : 'var(--radius-sm)'
+                  objectFit: 'contain', borderRadius: isFullScreen ? 0 : 'var(--radius-sm)',
+                  pointerEvents: 'none'
                 }}
               />
             </div>
@@ -693,6 +642,8 @@ export default function FileViewer({ file, onClose }) {
               <video
                 src={objectUrl}
                 controls
+                controlsList="nodownload"
+                onContextMenu={e => e.preventDefault()}
                 autoPlay={false}
                 style={{ width: '100%', maxHeight: '100%', display: 'block' }}
               />
@@ -710,23 +661,13 @@ export default function FileViewer({ file, onClose }) {
               <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{fileName}</div>
               <div style={{
                 color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: '1.7',
-                maxWidth: '400px', textAlign: 'center'
+                maxWidth: '420px', textAlign: 'center'
               }}>
                 {isWord
-                  ? 'Microsoft Word documents cannot be directly previewed inline.'
+                  ? 'Microsoft Word documents are set to view-only. Please ask your teacher for a PDF version to view inline.'
                   : isPpt
-                    ? 'PowerPoint presentations cannot be directly previewed inline.'
-                    : 'This file type cannot be previewed in-app.'}
-              </div>
-              <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={() => downloadFileData(fileData || objectUrl, fileName, ext)}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 18px' }}
-                >
-                  <Download size={16} /> Download File
-                </button>
+                    ? 'PowerPoint presentations are set to view-only. Please ask your teacher for a PDF version to view inline.'
+                    : 'This file format cannot be previewed in-app.'}
               </div>
             </div>
           )}
