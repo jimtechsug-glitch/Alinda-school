@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import FileViewer from '../components/FileViewer';
+import { downloadFileData } from '../utils/fileUtils';
 import { useAuth, API } from '../App';
 
 const NAV = [
@@ -442,12 +443,31 @@ export default function TeacherDashboard() {
                     👤 {m.creatorName || 'System'} ({m.creatorRole || 'admin'})
                   </div>
 
-                  <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem' }}>
-                    {m.fileData
-                      ? <a href={m.fileData} download={m.fileName} style={{ color: 'var(--accent-emerald)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>⬇ Download</a>
-                      : m.contentUrl
-                        ? <a href={m.contentUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}><ExternalLink size={12} /> Open Link</a>
-                        : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                  <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', gap: '6px' }}>
+                    {m.fileData ? (
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '3px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          onClick={() => setViewFile({ fileData: m.fileData, fileType: m.fileType, fileName: m.fileName, title: m.title })}
+                        >
+                          👁 View
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '3px 8px', fontSize: '0.75rem', color: 'var(--accent-emerald)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          onClick={() => downloadFileData(m.fileData, m.fileName, m.fileType)}
+                        >
+                          ⬇ Save
+                        </button>
+                      </div>
+                    ) : m.contentUrl ? (
+                      <a href={m.contentUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}><ExternalLink size={12} /> Open Link</a>
+                    ) : (
+                      <span style={{ color: 'var(--text-muted)' }}>—</span>
+                    )}
 
                     {m.teacherId == user?.id ? (
                       <button
@@ -603,7 +623,24 @@ export default function TeacherDashboard() {
                     {a.instructions}
                   </div>
                   {a.fileData && (
-                    <a href={a.fileData} download={a.fileName} style={{ color: 'var(--accent-emerald)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}>⬇ {a.fileName}</a>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: 'auto' }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '3px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        onClick={() => setViewFile({ fileData: a.fileData, fileType: a.fileType, fileName: a.fileName, title: a.title })}
+                      >
+                        👁 View Attached
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '3px 8px', fontSize: '0.75rem', color: 'var(--accent-emerald)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        onClick={() => downloadFileData(a.fileData, a.fileName, a.fileType)}
+                      >
+                        ⬇ Download
+                      </button>
+                    </div>
                   )}
                 </div>
               );

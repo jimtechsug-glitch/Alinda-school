@@ -729,6 +729,14 @@ export default function StudentDashboard() {
                           {a.instructions}
                         </div>
 
+                        {a.fileData && (
+                          <button
+                            onClick={() => setViewFile({ fileData: a.fileData, fileType: a.fileType, fileName: a.fileName, title: a.title })}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 12px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '7px', color: 'var(--accent-emerald)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
+                            👁 View Assignment File
+                          </button>
+                        )}
+
                         {/* Submission details & marking */}
                         {submitted && mySub && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: 'auto' }}>

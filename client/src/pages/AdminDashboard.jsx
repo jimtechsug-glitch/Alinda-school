@@ -6,6 +6,8 @@ import {
   EyeOff, Eye, Save, X, Key
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
+import FileViewer from '../components/FileViewer';
+import { downloadFileData } from '../utils/fileUtils';
 import { useAuth, API } from '../App';
 
 const NAV = [
@@ -44,6 +46,7 @@ export default function AdminDashboard() {
   const [activities, setActivities] = useState([]);
   const [lessons, setLessons] = useState([]);
   const [combinations, setCombinations] = useState([]);
+  const [viewFile, setViewFile] = useState(null);
   const [msg, setMsg] = useState('');
 
   const authHeaders = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
@@ -1283,11 +1286,28 @@ export default function AdminDashboard() {
                     <td>{m.classLevel ? <span className="badge badge-success">{m.classLevel}</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>All</span>}</td>
                     <td>{m.combination ? <span className="badge badge-warning">{m.combination}</span> : '—'}</td>
                     <td style={{ fontSize: '0.8rem' }}>
-                      {m.fileData
-                        ? <a href={m.fileData} download={m.fileName} style={{ color: 'var(--accent-emerald)' }}>⬇ {m.fileName}</a>
-                        : m.contentUrl
-                          ? <a href={m.contentUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)' }}>Open Link</a>
-                          : '—'}
+                      {m.fileData ? (
+                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '2px 6px', fontSize: '0.72rem' }}
+                            onClick={() => setViewFile({ fileData: m.fileData, fileType: m.fileType, fileName: m.fileName, title: m.title })}
+                          >
+                            👁 View
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '2px 6px', fontSize: '0.72rem', color: 'var(--accent-emerald)' }}
+                            onClick={() => downloadFileData(m.fileData, m.fileName, m.fileType)}
+                          >
+                            ⬇ Save
+                          </button>
+                        </div>
+                      ) : m.contentUrl ? (
+                        <a href={m.contentUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)' }}>Open Link</a>
+                      ) : '—'}
                     </td>
                     <td>
                       {m.isBlocked
@@ -1419,7 +1439,26 @@ export default function AdminDashboard() {
                     <td>{a.classLevel ? <span className="badge badge-success">{a.classLevel}</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>All</span>}</td>
                     <td>{a.combination ? <span className="badge badge-warning">{a.combination}</span> : '—'}</td>
                     <td style={{ fontSize: '0.8rem' }}>
-                      {a.fileData ? <a href={a.fileData} download={a.fileName} style={{ color: 'var(--accent-emerald)' }}>⬇ {a.fileName}</a> : '—'}
+                      {a.fileData ? (
+                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '2px 6px', fontSize: '0.72rem' }}
+                            onClick={() => setViewFile({ fileData: a.fileData, fileType: a.fileType, fileName: a.fileName, title: a.title })}
+                          >
+                            👁 View
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '2px 6px', fontSize: '0.72rem', color: 'var(--accent-emerald)' }}
+                            onClick={() => downloadFileData(a.fileData, a.fileName, a.fileType)}
+                          >
+                            ⬇ Save
+                          </button>
+                        </div>
+                      ) : '—'}
                     </td>
                     <td>{a.maxScore}</td>
                     <td>
@@ -1773,6 +1812,7 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+      {viewFile && <FileViewer file={viewFile} onClose={() => setViewFile(null)} />}
     </DashboardLayout>
   );
 }
